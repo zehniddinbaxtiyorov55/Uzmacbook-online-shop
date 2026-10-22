@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: uzmacbook-shop
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python shop_bot.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: BOT_TOKEN
+        sync: false
+      - key: BILLZ_SECRET_KEY
+        sync: false

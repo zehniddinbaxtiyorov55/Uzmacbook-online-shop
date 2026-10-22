@@ -1,7 +1,9 @@
 """Do'kon boti: faqat Mini App (Billz tovarlari), /start, /id, /kanal.
 Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
-import asyncio, logging, os, re
+import asyncio, hashlib, logging, os, re
 import aiohttp
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -125,9 +127,27 @@ async def on_any(m: Message):
 
 
 async def main():
-    await webapp.start(bot, billz_products, num)
-    await webapp.load()  # ishga tushganda tovarlarni darrov yuklaydi
-    await dp.start_polling(bot)
+    app = webapp.make_app(bot, billz_products, num)
+    secret = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32]
+    if webapp.URL:
+        # Webhook: Telegram xabari kelganda server o'zi uyg'onadi (Render bepul tarifi uchun)
+        SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=secret).register(
+            app, path="/tg/" + secret)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", "8080"))
+    await web.TCPSite(runner, "0.0.0.0", port).start()
+    log.info("BOT: server port %s da ishga tushdi", port)
+    await webapp.set_menu(bot)
+    if webapp.URL:
+        await bot.set_webhook(webapp.URL + "tg/" + secret, secret_token=secret,
+                              allowed_updates=dp.resolve_used_update_types())
+        log.info("BOT: webhook rejimi: %s", webapp.URL)
+        asyncio.create_task(webapp.load())
+        await asyncio.Event().wait()
+    else:
+        await bot.delete_webhook()
+        await dp.start_polling(bot)
 
 
 if __name__ == "__main__":

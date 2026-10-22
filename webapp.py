@@ -6,7 +6,9 @@ from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 log = logging.getLogger("BOT")
 HERE = os.path.dirname(os.path.abspath(__file__))
-URL = os.environ.get("WEBAPP_URL", "")            # https://xxx.up.railway.app/
+URL = os.environ.get("WEBAPP_URL") or os.environ.get("RENDER_EXTERNAL_URL", "")
+if URL and not URL.endswith("/"):
+    URL += "/"
 ADMIN = os.environ.get("ADMIN_CHAT_ID", "")       # buyurtmalar keladigan chat
 TOKEN = os.environ["BOT_TOKEN"]
 SKIP = ("seriya", "imei", "serial")
@@ -154,17 +156,16 @@ async def order(req):
     return web.json_response({"ok": True})
 
 
-async def start(bot, billz_products, num):
+def make_app(bot, billz_products, num):
     ctx.update(bot=bot, billz_products=billz_products, num=num)
     app = web.Application()
     app.router.add_get("/", index)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", "8080"))
-    await web.TCPSite(runner, "0.0.0.0", port).start()
-    log.info("BOT: Mini App server port %s da ishga tushdi", port)
+    return app
+
+
+async def set_menu(bot):
     if URL:
         try:
             await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
