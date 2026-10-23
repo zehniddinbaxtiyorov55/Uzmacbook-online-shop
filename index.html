@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Uzmacbook</title>
+<title>Magic Pro</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{
   --bg:#f5f5f7; --card:#fff; --tx:#1d1d1f; --tx2:#6e6e73; --line:#d2d2d7;
-  --blue:#0071e3; --blue-tx:#fff; --chip:#e8e8ed; --img:#f5f5f7; --sale:#bf4800;
+  --blue:#6b5bd6; --blue-tx:#fff; --chip:#e8e8ed; --img:#f5f5f7; --sale:#bf4800;
   --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05);
 }
 html.dark{
   --bg:#000; --card:#1c1c1e; --tx:#f5f5f7; --tx2:#98989d; --line:#38383a;
-  --blue:#2997ff; --chip:#2c2c2e; --img:#2c2c2e; --sale:#ff9f0a; --shadow:none;
+  --blue:#9d8fff; --chip:#2c2c2e; --img:#2c2c2e; --sale:#ff9f0a; --shadow:none;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{background:var(--bg);color:var(--tx);font:17px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,Roboto,sans-serif;
@@ -21,10 +21,10 @@ body{background:var(--bg);color:var(--tx);font:17px/1.47 -apple-system,BlinkMacS
 button{font:inherit;letter-spacing:inherit;cursor:pointer}
 
 /* ---- sarlavha ---- */
-.hero{padding:22px 20px 6px}
-.eyebrow{font-size:13px;font-weight:600;color:var(--tx2);letter-spacing:.01em;text-transform:uppercase}
-.hero h1{font:700 34px/1.12 -apple-system,"SF Pro Display",BlinkMacSystemFont,Inter,sans-serif;letter-spacing:-.03em;margin-top:2px}
-.hero p{color:var(--tx2);font-size:15px;margin-top:4px}
+.hero{margin:12px 16px 2px;border-radius:24px;padding:18px 20px 18px;text-align:center;overflow:hidden;
+  background:radial-gradient(120% 150% at 50% 0%,#40349a 0%,#1c1647 55%,#0e0b24 100%)}
+.hero img{width:min(70%,290px);height:auto;display:block;margin:0 auto}
+.hero p{color:rgba(255,255,255,.75);font-size:14px;margin-top:4px}
 
 .bar{position:sticky;top:0;z-index:5;padding:10px 20px 8px;background:color-mix(in srgb,var(--bg) 82%,transparent);
   -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
@@ -43,7 +43,10 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .card{background:var(--card);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow);
   transition:transform .2s ease}
 .card:active{transform:scale(.97)}
-.ph{position:relative;aspect-ratio:1;background:var(--img) center/cover no-repeat;display:flex;align-items:center;justify-content:center}
+.ph{position:relative;aspect-ratio:1;background:var(--img);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ph.stock{background:#fff}
+.ph.stock img{object-fit:contain;padding:10%;mix-blend-mode:multiply}
 .ph svg{opacity:.25}
 .tag{position:absolute;left:10px;top:10px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:980px;background:var(--card);color:var(--sale)}
 .cb{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
@@ -72,6 +75,8 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:4px -20px 0;scrollbar-width:none}
 .gal::-webkit-scrollbar{display:none}
 .gal img{flex:none;width:100%;aspect-ratio:1;object-fit:cover;scroll-snap-align:center;background:var(--img)}
+.gal.stock img{object-fit:contain;padding:8%;background:#fff}
+.demo{text-align:center;color:var(--tx2);font-size:12px;margin-top:8px}
 .dots{display:flex;justify-content:center;gap:6px;margin:10px 0 2px}
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s}
 .dots i.on{background:var(--tx)}
@@ -86,7 +91,10 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .cta{width:100%;border:0;border-radius:980px;padding:15px;background:var(--blue);color:var(--blue-tx);font-size:17px;font-weight:500}
 .cta.in{background:var(--chip);color:var(--blue)}
 .row{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
-.thumb{flex:none;width:64px;height:64px;border-radius:12px;background:var(--img) center/cover no-repeat}
+.thumb{flex:none;width:64px;height:64px;border-radius:12px;position:relative;overflow:hidden;background:var(--img);display:flex;align-items:center;justify-content:center}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.thumb.stock{background:#fff}.thumb.stock img{object-fit:contain;padding:6%}
+.thumb svg{width:30px;height:30px}
 .row .nm{font-size:15px}
 .rm{border:0;background:none;color:var(--blue);font-size:14px;padding:4px 0 0}
 .row b{margin-left:auto;font-weight:600;white-space:nowrap;font-size:15px}
@@ -95,14 +103,13 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .tel:focus{border-color:var(--blue)}
 .note{color:var(--tx2);font-size:13px;margin-top:10px}
 #fab{position:fixed;left:16px;right:16px;bottom:16px;z-index:20;border:0;border-radius:980px;padding:16px;background:var(--blue);color:var(--blue-tx);
-  font-weight:500;display:none;box-shadow:0 8px 24px rgba(0,113,227,.3)}
+  font-weight:500;display:none;box-shadow:0 8px 24px rgba(107,91,214,.35)}
 </style>
 </head>
 <body>
 <div class="hero">
-  <div class="eyebrow">Uzmacbook · MagicPro</div>
-  <h1>MacBook do'koni</h1>
-  <p id="sub">Narxlar va mavjudlik — real vaqtda</p>
+  <img src="logo.png" alt="Magic Pro" width="290" height="106">
+  <p id="sub">MacBooklar · narxlar real vaqtda</p>
 </div>
 <div class="bar">
   <label class="search">
@@ -121,7 +128,7 @@ const tg = window.Telegram && Telegram.WebApp;
 const inTg = !!(tg && tg.initData);
 const dark = tg && tg.colorScheme ? tg.colorScheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 if (dark) document.documentElement.classList.add("dark");
-const C = dark ? {bg:"#000000", blue:"#2997ff"} : {bg:"#f5f5f7", blue:"#0071e3"};
+const C = dark ? {bg:"#000000", blue:"#9d8fff"} : {bg:"#f5f5f7", blue:"#6b5bd6"};
 if (tg) {
   tg.ready(); tg.expand();
   try { tg.setHeaderColor(C.bg); tg.setBackgroundColor(C.bg); tg.MainButton.setParams({color: C.blue, text_color: "#ffffff"}); } catch (e) {}
@@ -144,6 +151,18 @@ function totalStr(list) {
   list.forEach(i => t[i.currency] = (t[i.currency] || 0) + cost(i));
   return Object.entries(t).map(([c, v]) => money(v, c)).join(" + ");
 }
+function pics(i) {
+  return i.photos.length ? {list: i.photos, stock: false} : {list: i.stock || [], stock: true};
+}
+function imgTag(list) {
+  if (!list.length) return ICON;
+  return `<img src="${esc(list[0])}" data-alt="${esc(list.slice(1).join("|"))}" onerror="nextImg(this)" loading="lazy" alt="">`;
+}
+window.nextImg = function (el) {
+  const rest = (el.dataset.alt || "").split("|").filter(Boolean);
+  if (rest.length) { el.dataset.alt = rest.slice(1).join("|"); el.src = rest[0]; }
+  else { el.parentElement && el.parentElement.classList.remove("stock"); el.outerHTML = ICON; }
+};
 function specs(i) { return i.details.slice(0, 4).map(d => d[1]).join(" · "); }
 function haptic(t) { try { tg.HapticFeedback.impactOccurred(t || "light"); } catch (e) {} }
 
@@ -179,8 +198,8 @@ function render() {
     (!q || (i.name + " " + i.brand + " " + i.details.map(d => d.join(" ")).join(" ")).toLowerCase().includes(q)));
   $("#grid").innerHTML = list.length ? list.map(i => `
     <div class="card" data-id="${esc(i.id)}">
-      <div class="ph" ${i.photos[0] ? `style="background-image:url('${esc(i.photos[0])}')"` : ""}>
-        ${i.photos[0] ? "" : ICON}
+      <div class="ph ${pics(i).stock && pics(i).list.length ? "stock" : ""}">
+        ${imgTag(pics(i).list)}
         ${i.promo ? `<span class="tag">Aksiya</span>` : (i.qty !== null && i.qty <= 2 ? `<span class="tag">${i.qty} ta qoldi</span>` : "")}
       </div>
       <div class="cb">
@@ -214,10 +233,12 @@ function closeSheet() {
 }
 function openItem(id) {
   const i = byId(id); if (!i) return;
-  const gal = i.photos.length
-    ? `<div class="gal" id="gal">${i.photos.map(u => `<img src="${esc(u)}" loading="lazy" alt="">`).join("")}</div>
-       ${i.photos.length > 1 ? `<div class="dots">${i.photos.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}`
-    : `<div class="ph" style="margin:4px -20px 0">${ICON}</div>`;
+  const P = pics(i);
+  const gal = !P.list.length ? `<div class="ph" style="margin:4px -20px 0">${ICON}</div>`
+    : P.stock
+    ? `<div class="gal stock">${imgTag(P.list)}</div><div class="demo">Namunaviy rasm · haqiqiy holatini menejerdan so'rang</div>`
+    : `<div class="gal" id="gal">${P.list.map(u => `<img src="${esc(u)}" loading="lazy" alt="">`).join("")}</div>
+       ${P.list.length > 1 ? `<div class="dots">${P.list.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}`;
   openSheet(`
     ${gal}
     <div class="ttl">${esc(i.name)}</div>
@@ -242,7 +263,7 @@ function openCart() {
   openSheet(`
     <div class="ttl" style="margin-top:4px">Savatingiz</div>
     ${list.map(i => `<div class="row">
-      <div class="thumb" ${i.photos[0] ? `style="background-image:url('${esc(i.photos[0])}')"` : ""}></div>
+      <div class="thumb ${pics(i).stock && pics(i).list.length ? "stock" : ""}">${imgTag(pics(i).list)}</div>
       <div><div class="nm">${esc(i.name)}</div><button class="rm" data-rm="${esc(i.id)}">Olib tashlash</button></div>
       <b>${money(cost(i), i.currency)}</b></div>`).join("")}
     <div class="tot"><span>Jami</span><span>${totalStr(list)}</span></div>

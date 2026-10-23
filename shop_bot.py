@@ -92,7 +92,7 @@ def shop_kb(text="🛍 Do'konni ochish"):
 
 @dp.message(CommandStart())
 async def on_start(m: Message):
-    await m.answer("Assalomu alaykum! Uzmacbook do'koniga xush kelibsiz. "
+    await m.answer("Assalomu alaykum! Magic Pro do'koniga xush kelibsiz. "
                    "Barcha MacBooklar, rasmlar va narxlar shu yerda 👇",
                    reply_markup=shop_kb())
 

@@ -3,6 +3,7 @@ import asyncio, hashlib, hmac, json, logging, os, time
 from urllib.parse import parse_qsl
 from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
+from stock_photos import stock_photos
 
 log = logging.getLogger("BOT")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -66,6 +67,7 @@ def to_item(p):
         "price": price, "promo": promo, "currency": cur,
         "qty": qty if stocks else None,
         "photos": photos_of(p),
+        "stock": stock_photos(name, details),
         "details": details[:12],
     }
 
@@ -110,6 +112,11 @@ def money(v, cur):
 async def index(_):
     return web.FileResponse(os.path.join(HERE, "index.html"),
                             headers={"Cache-Control": "no-cache"})
+
+
+async def logo(_):
+    return web.FileResponse(os.path.join(HERE, "logo.png"),
+                            headers={"Cache-Control": "public, max-age=86400"})
 
 
 async def products(_):
@@ -160,6 +167,7 @@ def make_app(bot, billz_products, num):
     ctx.update(bot=bot, billz_products=billz_products, num=num)
     app = web.Application()
     app.router.add_get("/", index)
+    app.router.add_get("/logo.png", logo)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     return app
