@@ -2,72 +2,116 @@
 <html lang="uz">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Uzmacbook</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{
-  --bg:var(--tg-theme-bg-color,#fff);
-  --bg2:var(--tg-theme-secondary-bg-color,#f2f2f7);
-  --card:var(--tg-theme-section-bg-color,var(--tg-theme-bg-color,#fff));
-  --tx:var(--tg-theme-text-color,#111);
-  --hint:var(--tg-theme-hint-color,#8e8e93);
-  --acc:var(--tg-theme-button-color,#2481cc);
-  --acctx:var(--tg-theme-button-text-color,#fff);
-  --red:var(--tg-theme-destructive-text-color,#e53935);
+  --bg:#f5f5f7; --card:#fff; --tx:#1d1d1f; --tx2:#6e6e73; --line:#d2d2d7;
+  --blue:#0071e3; --blue-tx:#fff; --chip:#e8e8ed; --img:#f5f5f7; --sale:#bf4800;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05);
+}
+html.dark{
+  --bg:#000; --card:#1c1c1e; --tx:#f5f5f7; --tx2:#98989d; --line:#38383a;
+  --blue:#2997ff; --chip:#2c2c2e; --img:#2c2c2e; --sale:#ff9f0a; --shadow:none;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{background:var(--bg2);color:var(--tx);font:15px/1.35 -apple-system,system-ui,Roboto,sans-serif;padding-bottom:90px}
-header{position:sticky;top:0;z-index:5;background:var(--bg2);padding:10px 12px 4px}
-.brand{font-weight:700;font-size:18px;margin-bottom:8px}
-#q{width:100%;border:0;border-radius:12px;padding:10px 12px;background:var(--card);color:var(--tx);font-size:15px;outline:none}
-#q::placeholder{color:var(--hint)}
-#cats{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px;scrollbar-width:none}
+body{background:var(--bg);color:var(--tx);font:17px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,Roboto,sans-serif;
+  letter-spacing:-.022em;-webkit-font-smoothing:antialiased;padding-bottom:96px}
+button{font:inherit;letter-spacing:inherit;cursor:pointer}
+
+/* ---- sarlavha ---- */
+.hero{padding:22px 20px 6px}
+.eyebrow{font-size:13px;font-weight:600;color:var(--tx2);letter-spacing:.01em;text-transform:uppercase}
+.hero h1{font:700 34px/1.12 -apple-system,"SF Pro Display",BlinkMacSystemFont,Inter,sans-serif;letter-spacing:-.03em;margin-top:2px}
+.hero p{color:var(--tx2);font-size:15px;margin-top:4px}
+
+.bar{position:sticky;top:0;z-index:5;padding:10px 20px 8px;background:color-mix(in srgb,var(--bg) 82%,transparent);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+.search{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;height:40px}
+.search svg{flex:none;opacity:.5}
+#q{flex:1;border:0;background:none;color:var(--tx);font:inherit;font-size:16px;outline:none;min-width:0}
+#q::placeholder{color:var(--tx2)}
+#cats{display:flex;gap:8px;overflow-x:auto;padding-top:10px;scrollbar-width:none}
 #cats::-webkit-scrollbar{display:none}
-.chip{flex:none;border:0;border-radius:16px;padding:6px 12px;background:var(--card);color:var(--tx);font-size:13px}
-.chip.on{background:var(--acc);color:var(--acctx)}
-#grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 12px}
-.card{background:var(--card);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-.ph{aspect-ratio:1;background:var(--bg2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--hint);font-size:36px}
-.cb{padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px;flex:1}
-.nm{font-weight:600;font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.sp{color:var(--hint);font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.pr{font-weight:700;margin-top:auto;padding-top:2px}
-.old{color:var(--hint);text-decoration:line-through;font-weight:400;font-size:12px;margin-left:4px}
-.left{color:var(--red);font-size:12px}
-.add{border:0;border-radius:10px;padding:8px;background:var(--acc);color:var(--acctx);font-weight:600;font-size:13px;margin-top:4px}
-.add.in{background:var(--bg2);color:var(--acc)}
-.msg{grid-column:1/-1;text-align:center;color:var(--hint);padding:48px 0}
-.sheet{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.45);display:none;align-items:flex-end}
-.sheet.open{display:flex}
-.panel{background:var(--bg);width:100%;max-height:92vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:14px 14px 28px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.x{border:0;background:var(--bg2);color:var(--tx);width:32px;height:32px;border-radius:50%;font-size:16px}
-.gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;margin:0 -14px 12px;padding:0 14px;scrollbar-width:none}
+.chip{flex:none;border:0;border-radius:980px;padding:7px 15px;background:var(--chip);color:var(--tx);font-size:14px;font-weight:500}
+.chip.on{background:var(--tx);color:var(--bg)}
+
+/* ---- tovarlar ---- */
+#grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 16px 16px}
+@media (min-width:640px){#grid{grid-template-columns:repeat(3,1fr)}}
+.card{background:var(--card);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow);
+  transition:transform .2s ease}
+.card:active{transform:scale(.97)}
+.ph{position:relative;aspect-ratio:1;background:var(--img) center/cover no-repeat;display:flex;align-items:center;justify-content:center}
+.ph svg{opacity:.25}
+.tag{position:absolute;left:10px;top:10px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:980px;background:var(--card);color:var(--sale)}
+.cb{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
+.nm{font-weight:600;font-size:15px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sp{color:var(--tx2);font-size:12px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto;padding-top:12px}
+.pr{font-weight:600;font-size:16px;white-space:nowrap}
+.pr small{display:block;color:var(--tx2);text-decoration:line-through;font-weight:400;font-size:12px}
+.add{flex:none;border:0;width:34px;height:34px;border-radius:50%;background:var(--blue);color:var(--blue-tx);
+  display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;transition:transform .15s}
+.add:active{transform:scale(.88)}
+.add.in{background:var(--chip);color:var(--blue)}
+.msg{grid-column:1/-1;text-align:center;color:var(--tx2);padding:64px 0;font-size:15px}
+.sk .ph,.sk .l{background:linear-gradient(90deg,var(--img) 25%,var(--chip) 50%,var(--img) 75%);background-size:200% 100%;animation:sh 1.2s infinite}
+.sk .l{height:12px;border-radius:6px;margin-top:8px}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* ---- oyna (tovar / savat) ---- */
+.sheet{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s}
+.sheet.open{opacity:1;pointer-events:auto}
+.panel{position:absolute;left:0;right:0;bottom:0;background:var(--card);max-height:94vh;overflow-y:auto;border-radius:22px 22px 0 0;
+  padding:8px 20px calc(110px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.sheet.open .panel{transform:none}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.x{position:absolute;right:16px;top:22px;z-index:3;border:0;width:32px;height:32px;border-radius:50%;background:color-mix(in srgb,var(--card) 80%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--tx);font-size:15px}
+.gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:4px -20px 0;scrollbar-width:none}
 .gal::-webkit-scrollbar{display:none}
-.gal img{flex:none;width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;scroll-snap-align:center;background:var(--bg2)}
-h2{font-size:18px}
-.big{font-size:20px;font-weight:700;margin:6px 0}
-table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:14px}
-td{padding:8px 0;border-bottom:1px solid var(--bg2);vertical-align:top}
-td:first-child{color:var(--hint);width:45%;padding-right:8px}
-.wide{width:100%;padding:13px;font-size:15px;border-radius:12px}
-.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg2)}
-.row b{white-space:nowrap}
-.rm{border:0;background:none;color:var(--red);font-size:13px;margin-top:2px}
-.tot{display:flex;justify-content:space-between;font-weight:700;padding:12px 0}
-.tel{width:100%;border:0;border-radius:12px;padding:12px;background:var(--bg2);color:var(--tx);font-size:16px;outline:none;margin:6px 0}
-.note{color:var(--hint);font-size:13px}
-#fab{position:fixed;left:12px;right:12px;bottom:14px;z-index:20;border:0;border-radius:12px;padding:14px;background:var(--acc);color:var(--acctx);font-weight:600;font-size:15px;display:none}
+.gal img{flex:none;width:100%;aspect-ratio:1;object-fit:cover;scroll-snap-align:center;background:var(--img)}
+.dots{display:flex;justify-content:center;gap:6px;margin:10px 0 2px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s}
+.dots i.on{background:var(--tx)}
+.ttl{font:700 26px/1.15 -apple-system,"SF Pro Display",BlinkMacSystemFont,Inter,sans-serif;letter-spacing:-.025em;margin-top:14px;padding-right:30px}
+.big{font-size:21px;font-weight:600;margin-top:6px}
+.big small{color:var(--tx2);text-decoration:line-through;font-weight:400;font-size:15px;margin-left:8px}
+.stock{font-size:13px;color:var(--sale);margin-top:2px}
+.specs{margin:18px 0 22px;border-top:1px solid var(--line)}
+.specs div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}
+.specs span:first-child{color:var(--tx2)}
+.specs span:last-child{text-align:right;font-weight:500}
+.cta{width:100%;border:0;border-radius:980px;padding:15px;background:var(--blue);color:var(--blue-tx);font-size:17px;font-weight:500}
+.cta.in{background:var(--chip);color:var(--blue)}
+.row{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.thumb{flex:none;width:64px;height:64px;border-radius:12px;background:var(--img) center/cover no-repeat}
+.row .nm{font-size:15px}
+.rm{border:0;background:none;color:var(--blue);font-size:14px;padding:4px 0 0}
+.row b{margin-left:auto;font-weight:600;white-space:nowrap;font-size:15px}
+.tot{display:flex;justify-content:space-between;font-size:19px;font-weight:600;padding:18px 0 14px}
+.tel{width:100%;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);color:var(--tx);font:inherit;outline:none}
+.tel:focus{border-color:var(--blue)}
+.note{color:var(--tx2);font-size:13px;margin-top:10px}
+#fab{position:fixed;left:16px;right:16px;bottom:16px;z-index:20;border:0;border-radius:980px;padding:16px;background:var(--blue);color:var(--blue-tx);
+  font-weight:500;display:none;box-shadow:0 8px 24px rgba(0,113,227,.3)}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">Uzmacbook · MagicPro</div>
-  <input id="q" type="search" placeholder="Qidirish: Air M1, 16/512..." autocomplete="off">
+<div class="hero">
+  <div class="eyebrow">Uzmacbook · MagicPro</div>
+  <h1>MacBook do'koni</h1>
+  <p id="sub">Narxlar va mavjudlik — real vaqtda</p>
+</div>
+<div class="bar">
+  <label class="search">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5.5"/><path d="M11 11l3.5 3.5" stroke-linecap="round"/></svg>
+    <input id="q" type="search" placeholder="Qidirish: Air M1, 16/512..." autocomplete="off">
+  </label>
   <div id="cats"></div>
-</header>
-<main id="grid"><div class="msg">Yuklanmoqda...</div></main>
+</div>
+<main id="grid"></main>
 
 <div class="sheet" id="sheet"><div class="panel" id="panel"></div></div>
 <button id="fab"></button>
@@ -75,18 +119,25 @@ td:first-child{color:var(--hint);width:45%;padding-right:8px}
 <script>
 const tg = window.Telegram && Telegram.WebApp;
 const inTg = !!(tg && tg.initData);
-if (tg) { tg.ready(); tg.expand(); }
+const dark = tg && tg.colorScheme ? tg.colorScheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+if (dark) document.documentElement.classList.add("dark");
+const C = dark ? {bg:"#000000", blue:"#2997ff"} : {bg:"#f5f5f7", blue:"#0071e3"};
+if (tg) {
+  tg.ready(); tg.expand();
+  try { tg.setHeaderColor(C.bg); tg.setBackgroundColor(C.bg); tg.MainButton.setParams({color: C.blue, text_color: "#ffffff"}); } catch (e) {}
+}
 
-let items = [], cat = "Hammasi", view = null; // view: null | "item" | "cart"
+let items = [], cat = "Hammasi", view = null;
 const cart = new Set();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const byId = id => items.find(i => i.id === id);
 const cost = i => i.promo || i.price;
+const ICON = `<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>`;
 
 function money(v, c) {
   const n = Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  return (!c || /usd|\$/i.test(c)) ? n + " $" : n + " so'm";
+  return (!c || /usd|\$/i.test(c)) ? "$" + n : n + " so'm";
 }
 function totalStr(list) {
   const t = {};
@@ -94,13 +145,14 @@ function totalStr(list) {
   return Object.entries(t).map(([c, v]) => money(v, c)).join(" + ");
 }
 function specs(i) { return i.details.slice(0, 4).map(d => d[1]).join(" · "); }
-function haptic() { try { tg.HapticFeedback.impactOccurred("light"); } catch (e) {} }
+function haptic(t) { try { tg.HapticFeedback.impactOccurred(t || "light"); } catch (e) {} }
 
-/* ---- asosiy tugma (Telegram MainButton yoki brauzerda oddiy tugma) ---- */
+/* ---- asosiy tugma ---- */
+let mainHandler = () => {};
 function setMain(text, onClick) {
   if (inTg) {
     tg.MainButton.offClick(mainHandler);
-    mainHandler = onClick;
+    mainHandler = onClick || (() => {});
     if (text) { tg.MainButton.setText(text); tg.MainButton.show(); tg.MainButton.onClick(mainHandler); }
     else tg.MainButton.hide();
   } else {
@@ -108,12 +160,11 @@ function setMain(text, onClick) {
     b.textContent = text || ""; b.style.display = text ? "block" : "none"; b.onclick = onClick;
   }
 }
-let mainHandler = () => {};
 function refreshMain() {
   if (view === "cart") return setMain("Buyurtma berish", submit);
   if (view === "item") return;
   const list = [...cart].map(byId).filter(Boolean);
-  setMain(list.length ? `Savat: ${list.length} ta · ${totalStr(list)}` : "", openCart);
+  setMain(list.length ? `Savat · ${list.length} ta · ${totalStr(list)}` : "", openCart);
 }
 
 /* ---- ro'yxat ---- */
@@ -128,15 +179,22 @@ function render() {
     (!q || (i.name + " " + i.brand + " " + i.details.map(d => d.join(" ")).join(" ")).toLowerCase().includes(q)));
   $("#grid").innerHTML = list.length ? list.map(i => `
     <div class="card" data-id="${esc(i.id)}">
-      <div class="ph" ${i.photos[0] ? `style="background-image:url('${esc(i.photos[0])}')"` : ""}>${i.photos[0] ? "" : "💻"}</div>
+      <div class="ph" ${i.photos[0] ? `style="background-image:url('${esc(i.photos[0])}')"` : ""}>
+        ${i.photos[0] ? "" : ICON}
+        ${i.promo ? `<span class="tag">Aksiya</span>` : (i.qty !== null && i.qty <= 2 ? `<span class="tag">${i.qty} ta qoldi</span>` : "")}
+      </div>
       <div class="cb">
         <div class="nm">${esc(i.name)}</div>
         <div class="sp">${esc(specs(i))}</div>
-        <div class="pr">${money(cost(i), i.currency)}${i.promo ? `<span class="old">${money(i.price, i.currency)}</span>` : ""}</div>
-        ${i.qty !== null && i.qty <= 2 ? `<div class="left">Atigi ${i.qty} ta qoldi</div>` : ""}
-        <button class="add ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}">${cart.has(i.id) ? "Savatda ✓" : "Savatga"}</button>
+        <div class="foot">
+          <div class="pr">${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}${money(cost(i), i.currency)}</div>
+          <button class="add ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}" aria-label="Savatga">${cart.has(i.id) ? "✓" : "+"}</button>
+        </div>
       </div>
     </div>`).join("") : `<div class="msg">Hech narsa topilmadi</div>`;
+}
+function skeleton() {
+  $("#grid").innerHTML = Array(6).fill(`<div class="card sk"><div class="ph"></div><div class="cb"><div class="l"></div><div class="l" style="width:60%"></div><div class="l" style="width:40%;margin-top:18px"></div></div></div>`).join("");
 }
 function toggle(id) {
   cart.has(id) ? cart.delete(id) : cart.add(id);
@@ -145,7 +203,8 @@ function toggle(id) {
 
 /* ---- oynalar ---- */
 function openSheet(html, v) {
-  view = v; $("#panel").innerHTML = html; $("#sheet").classList.add("open");
+  view = v; $("#panel").innerHTML = `<div class="grab"></div><button class="x" data-close>✕</button>` + html;
+  $("#panel").scrollTop = 0; $("#sheet").classList.add("open");
   if (inTg) tg.BackButton.show();
 }
 function closeSheet() {
@@ -155,25 +214,37 @@ function closeSheet() {
 }
 function openItem(id) {
   const i = byId(id); if (!i) return;
-  const gal = i.photos.length ? `<div class="gal">${i.photos.map(u => `<img src="${esc(u)}" loading="lazy" alt="">`).join("")}</div>` : "";
+  const gal = i.photos.length
+    ? `<div class="gal" id="gal">${i.photos.map(u => `<img src="${esc(u)}" loading="lazy" alt="">`).join("")}</div>
+       ${i.photos.length > 1 ? `<div class="dots">${i.photos.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}`
+    : `<div class="ph" style="margin:4px -20px 0">${ICON}</div>`;
   openSheet(`
-    <div class="top"><h2>${esc(i.name)}</h2><button class="x" data-close>✕</button></div>
     ${gal}
-    <div class="big">${money(cost(i), i.currency)}${i.promo ? `<span class="old">${money(i.price, i.currency)}</span>` : ""}</div>
-    <table>
-      ${i.brand ? `<tr><td>Brend</td><td>${esc(i.brand)}</td></tr>` : ""}
-      ${i.details.map(d => `<tr><td>${esc(d[0])}</td><td>${esc(d[1])}</td></tr>`).join("")}
-      ${i.qty !== null ? `<tr><td>Mavjud</td><td>${i.qty} ta</td></tr>` : ""}
-    </table>
-    <button class="add wide ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}" data-stay>${cart.has(i.id) ? "Savatdan olib tashlash" : "Savatga qo'shish"}</button>`, "item");
+    <div class="ttl">${esc(i.name)}</div>
+    <div class="big">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
+    ${i.qty !== null && i.qty <= 2 ? `<div class="stock">Atigi ${i.qty} ta qoldi</div>` : ""}
+    <div class="specs">
+      ${i.brand ? `<div><span>Brend</span><span>${esc(i.brand)}</span></div>` : ""}
+      ${i.details.map(d => `<div><span>${esc(d[0])}</span><span>${esc(d[1])}</span></div>`).join("")}
+      ${i.qty !== null ? `<div><span>Mavjud</span><span>${i.qty} ta</span></div>` : ""}
+    </div>
+    <button class="cta ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}">${cart.has(i.id) ? "Savatda ✓" : "Savatga qo'shish"}</button>`, "item");
+  const g = $("#gal");
+  if (g) g.addEventListener("scroll", () => {
+    const k = Math.round(g.scrollLeft / g.clientWidth);
+    document.querySelectorAll(".dots i").forEach((d, n) => d.classList.toggle("on", n === k));
+  }, {passive: true});
   setMain("", null);
 }
 function openCart() {
   const list = [...cart].map(byId).filter(Boolean);
   if (!list.length) return;
   openSheet(`
-    <div class="top"><h2>Savat</h2><button class="x" data-close>✕</button></div>
-    ${list.map(i => `<div class="row"><div>${esc(i.name)}<br><button class="rm" data-rm="${esc(i.id)}">O'chirish</button></div><b>${money(cost(i), i.currency)}</b></div>`).join("")}
+    <div class="ttl" style="margin-top:4px">Savatingiz</div>
+    ${list.map(i => `<div class="row">
+      <div class="thumb" ${i.photos[0] ? `style="background-image:url('${esc(i.photos[0])}')"` : ""}></div>
+      <div><div class="nm">${esc(i.name)}</div><button class="rm" data-rm="${esc(i.id)}">Olib tashlash</button></div>
+      <b>${money(cost(i), i.currency)}</b></div>`).join("")}
     <div class="tot"><span>Jami</span><span>${totalStr(list)}</span></div>
     <input class="tel" id="tel" type="tel" inputmode="tel" placeholder="Telefon raqamingiz: +998 ..." autocomplete="tel">
     <div class="note">Menejerimiz siz bilan bog'lanib, buyurtmani tasdiqlaydi.</div>`, "cart");
@@ -205,12 +276,12 @@ async function submit() {
 $("#q").addEventListener("input", render);
 $("#cats").addEventListener("click", e => {
   const c = e.target.closest("[data-c]"); if (!c) return;
-  cat = c.dataset.c; renderCats(); render();
+  cat = c.dataset.c; haptic("soft"); renderCats(); render();
 });
 $("#grid").addEventListener("click", e => {
   const a = e.target.closest("[data-add]");
   if (a) return toggle(a.dataset.add);
-  const card = e.target.closest(".card"); if (card) openItem(card.dataset.id);
+  const card = e.target.closest(".card"); if (card && card.dataset.id) openItem(card.dataset.id);
 });
 $("#sheet").addEventListener("click", e => {
   if (e.target.id === "sheet" || e.target.closest("[data-close]")) return closeSheet();
@@ -221,9 +292,12 @@ $("#sheet").addEventListener("click", e => {
 });
 if (inTg) tg.BackButton.onClick(closeSheet);
 
+skeleton();
 fetch("api/products").then(r => r.json()).then(d => {
-  items = d.items || []; renderCats(); render(); refreshMain();
-}).catch(() => { $("#grid").innerHTML = `<div class="msg">Yuklab bo'lmadi, qayta oching</div>`; });
+  items = d.items || [];
+  $("#sub").textContent = items.length ? `${items.length} ta model · narxlar real vaqtda` : "Hozircha tovar yo'q";
+  renderCats(); render(); refreshMain();
+}).catch(() => { $("#grid").innerHTML = `<div class="msg">Yuklab bo'lmadi. Qayta oching.</div>`; });
 </script>
 </body>
 </html>
