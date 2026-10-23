@@ -104,7 +104,11 @@ async def on_id(m: Message):
 
 @dp.message(Command("kanal"))
 async def on_kanal(m: Message, command: CommandObject):
-    if str(m.chat.id) != webapp.ADMIN:
+    if not webapp.ADMIN:
+        await m.answer("Avval Render → Environment ga ADMIN_CHAT_ID = %s qo'shing." % m.chat.id)
+        return
+    if str(m.chat.id) != webapp.ADMIN.strip():
+        await m.answer("Bu buyruq faqat do'kon egasi uchun.")
         return
     ch = (command.args or "").strip()
     if not ch:
