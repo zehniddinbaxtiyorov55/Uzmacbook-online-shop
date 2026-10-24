@@ -18,15 +18,15 @@ PLAN = {
     "down": float(os.environ.get("INSTALLMENT_DOWN_PCT", "50")),
     "min": int(os.environ.get("INSTALLMENT_MIN_MONTHS", "3")),
     "max": int(os.environ.get("INSTALLMENT_MAX_MONTHS", "8")),
-    "pct": float(os.environ.get("INSTALLMENT_MONTHLY_PCT", "0")),
+    "pct": float(os.environ.get("INSTALLMENT_MONTHLY_PCT", "6")),
 }
 
 
 def plan_calc(price, months):
     down = math.ceil(price * PLAN["down"] / 100)
-    rest = (price - down) * (1 + PLAN["pct"] / 100 * months)
-    monthly = math.ceil(rest / months)
-    return down, monthly, down + monthly * months
+    rest = round((price - down) * (1 + PLAN["pct"] / 100 * months), 2)
+    monthly = math.ceil(rest * 100 / months - 1e-9) / 100
+    return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
 lock = asyncio.Lock()
@@ -119,7 +119,8 @@ def check_init(init):
 
 
 def money(v, cur):
-    s = "{:,}".format(int(round(v))).replace(",", " ")
+    v = round(v, 2)
+    s = ("{:,.0f}" if v == int(v) else "{:,.2f}").format(v).replace(",", " ")
     return s + " $" if (not cur or cur.upper() in ("USD", "$")) else s + " so'm"
 
 
@@ -171,8 +172,12 @@ async def order(req):
             monthlies[c] = monthlies.get(c, 0) + mo
     join = lambda dct: " + ".join(money(v, c) for c, v in dct.items())
     if months:
-        pay = ("Bo'lib to'lash: %s oy\nBoshlang'ich: %s\nOyiga: %s"
-               % (months, join(downs), join(monthlies)))
+        totals2 = {}
+        for it in chosen:
+            c = it["currency"]
+            totals2[c] = totals2.get(c, 0) + plan_calc(it["promo"] or it["price"], months)[2]
+        pay = ("Bo'lib to'lash: %s oy (+%g%% oyiga)\nBoshlang'ich: %s\nOyiga: %s\nBo'lib to'lashda jami: %s"
+               % (months, PLAN["pct"], join(downs), join(monthlies), join(totals2)))
     else:
         pay = "To'lov: to'liq"
     who = (user.get("first_name") or "") + " " + (user.get("last_name") or "")

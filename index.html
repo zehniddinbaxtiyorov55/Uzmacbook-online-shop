@@ -146,12 +146,12 @@ if (tg) {
 }
 
 let items = [], cat = "Hammasi", view = null;
-let plan = {down: 50, min: 3, max: 8, pct: 0}, itemM = 8, payM = 0;
+let plan = {down: 50, min: 3, max: 8, pct: 6}, itemM = 8, payM = 0;
 function calc(price, m) {
   const down = Math.ceil(price * plan.down / 100);
-  const rest = (price - down) * (1 + plan.pct / 100 * m);
-  const monthly = Math.ceil(rest / m);
-  return {down, monthly, total: down + monthly * m};
+  const rest = Math.round((price - down) * (1 + plan.pct / 100 * m) * 100) / 100;
+  const monthly = Math.ceil(rest * 100 / m - 1e-9) / 100;
+  return {down, monthly, total: Math.round((down + rest) * 100) / 100};
 }
 function sumBy(list, f) {
   const t = {};
@@ -167,7 +167,9 @@ const cost = i => i.promo || i.price;
 const ICON = `<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>`;
 
 function money(v, c) {
-  const n = Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  v = Math.round(v * 100) / 100;
+  const [a, b] = (Number.isInteger(v) ? String(v) : v.toFixed(2)).split(".");
+  const n = a.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + (b ? "." + b : "");
   return (!c || /usd|\$/i.test(c)) ? "$" + n : n + " so'm";
 }
 function totalStr(list) {
