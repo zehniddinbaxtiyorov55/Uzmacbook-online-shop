@@ -153,7 +153,7 @@ function uzs(i) {
   if (!usdUzs || !/usd|\$/i.test(i.currency || "USD")) return "";
   const v = Math.round(cost(i) * usdUzs / 1000) * 1000;
   return `<div class="uzs">≈ ${v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm</div>
-    <div class="rate">Kurs: 1$ = ${String(usdUzs).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm · Markaziy bank${rateDate ? ", " + esc(rateDate) : ""}</div>`;
+    <div class="rate">Kurs: 1$ = ${String(usdUzs).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm${rateDate ? " · " + esc(rateDate) : ""}</div>`;
 }
 function calc(price, m) {
   const down = Math.ceil(price * plan.down / 100);

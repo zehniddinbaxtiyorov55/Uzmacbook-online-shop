@@ -1,5 +1,5 @@
 """Telegram Mini App do'kon: Billz tovarlari (rasm, narx, qoldiq) + savat + buyurtma."""
-import asyncio, datetime, hashlib, hmac, json, logging, math, os, time
+import asyncio, datetime, hashlib, hmac, html as htmlmod, json, logging, math, os, re, time
 import aiohttp
 from urllib.parse import parse_qsl
 from aiohttp import web
@@ -30,10 +30,39 @@ def plan_calc(price, months):
     return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
-rate_cache = {"rate": None, "date": "", "at": 0.0, "busy": False}
+rate_cache = {"rate": None, "date": "", "src": "", "at": 0.0, "busy": False}
 CBU = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/%s"
 RATE_TTL = 3600                                            # kurs har soatda tekshiriladi
 RATE_EXTRA = float(os.environ.get("USD_RATE_EXTRA", "0"))  # kursga qo'shimcha so'm
+BANK_PAGES = ["https://bank.uz/currency/dollar-ssha-uz-aqsh-dollari",
+              "https://exchangerates.uz/rates/tashkent"]
+UA = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                    "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "Accept-Language": "ru,uz;q=0.9"}
+
+
+def buy_rates_from_html(page, cbu=None):
+    """Sahifadagi 'Покупка' (bank olish) bo'limidagi kurslarni ajratib oladi."""
+    page = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", page)
+    text = htmlmod.unescape(re.sub(r"(?s)<[^>]+>", "\n", page)).replace("\xa0", " ")
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    lo, hi = (cbu * 0.9, cbu * 1.005) if cbu else (5000, 30000)
+    out, inside = [], False
+    for l in lines:
+        low = l.lower()
+        if low.startswith(("покупка", "sotib olish", "olish", "buy")):
+            inside = True
+            continue
+        if low.startswith(("продажа", "sotish", "sell")):
+            inside = False
+            continue
+        if inside:
+            m = re.fullmatch(r"(\d{1,2} ?\d{3})(?:[.,]\d+)?\s*(сум|so'?m|uzs)?\.?", l, re.I)
+            if m:
+                v = int(m.group(1).replace(" ", ""))
+                if lo <= v <= hi:
+                    out.append(v)
+    return out
 
 
 async def _cbu_day(session, day):
@@ -54,11 +83,11 @@ def usd_rate():
     if time.time() - rate_cache["at"] > RATE_TTL and not rate_cache["busy"]:
         rate_cache["busy"] = True
         asyncio.get_event_loop().create_task(refresh_rate())
-    return rate_cache["rate"], rate_cache["date"]
+    return rate_cache["rate"], rate_cache["date"] + (" · " + rate_cache["src"] if rate_cache["src"] else "")
 
 
 async def refresh_rate():
-    """Markaziy bankning bugungi USD kursi, 10 so'mgacha yuqoriga yaxlitlangan."""
+    """Banklarning bugungi dollar OLISH kursi: eng balandi (bank.uz). Bo'lmasa — MB kursi."""
     try:
         await asyncio.wait_for(_refresh_rate(), 30)
     except Exception:
@@ -76,11 +105,27 @@ async def _refresh_rate():
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
             got = await _cbu_day(session, today) or await _cbu_day(session, None)  # bugungi, bo'lmasa oxirgisi
-        if got and got[0] > 0:
-            mb, day = got
-            rate = math.ceil((mb + RATE_EXTRA) / 10) * 10
-            rate_cache.update(rate=rate, date=day, at=time.time())
-            log.info("BOT: MB kursi %s: %s -> %s", day, mb, rate)
+            cbu = got[0] if got and got[0] > 0 else None
+            buys = []
+            for url in BANK_PAGES:
+                try:
+                    async with session.get(url, headers=UA) as r:
+                        page = await r.text(errors="ignore")
+                    buys = buy_rates_from_html(page, cbu)
+                except Exception:
+                    log.warning("BOT: %s ochilmadi", url)
+                if len(buys) >= 3:
+                    break
+        if len(buys) >= 3:
+            best = max(buys)
+            rate = round((best + RATE_EXTRA) / 10) * 10
+            rate_cache.update(rate=rate, date=today.strftime("%d.%m.%Y"), src="banklar olish kursi", at=time.time())
+            log.info("BOT: banklar olish kursi: %s ta bank, eng past %s, eng baland %s -> %s",
+                     len(buys), min(buys), best, rate)
+        elif cbu:
+            rate = math.ceil((cbu + RATE_EXTRA) / 10) * 10
+            rate_cache.update(rate=rate, date=got[1], src="Markaziy bank", at=time.time())
+            log.warning("BOT: banklar kursi topilmadi, MB kursi ishlatildi: %s -> %s", cbu, rate)
     except Exception:
         log.exception("BOT: MB kursini olib bo'lmadi")
     if not rate_cache["rate"] and os.environ.get("USD_RATE"):
