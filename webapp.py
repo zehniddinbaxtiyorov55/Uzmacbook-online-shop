@@ -1,5 +1,5 @@
 """Telegram Mini App do'kon: Billz tovarlari (rasm, narx, qoldiq) + savat + buyurtma."""
-import asyncio, hashlib, hmac, json, logging, os, time
+import asyncio, hashlib, hmac, json, logging, math, os, time
 from urllib.parse import parse_qsl
 from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
@@ -13,6 +13,20 @@ if URL and not URL.endswith("/"):
 ADMIN = os.environ.get("ADMIN_CHAT_ID", "")       # buyurtmalar keladigan chat
 TOKEN = os.environ["BOT_TOKEN"]
 SKIP = ("seriya", "imei", "serial")
+# Bo'lib to'lash: boshlang'ich %, oylar oralig'i, qoldiqqa oylik ustama %
+PLAN = {
+    "down": float(os.environ.get("INSTALLMENT_DOWN_PCT", "50")),
+    "min": int(os.environ.get("INSTALLMENT_MIN_MONTHS", "3")),
+    "max": int(os.environ.get("INSTALLMENT_MAX_MONTHS", "8")),
+    "pct": float(os.environ.get("INSTALLMENT_MONTHLY_PCT", "0")),
+}
+
+
+def plan_calc(price, months):
+    down = math.ceil(price * PLAN["down"] / 100)
+    rest = (price - down) * (1 + PLAN["pct"] / 100 * months)
+    monthly = math.ceil(rest / months)
+    return down, monthly, down + monthly * months
 
 cache = {"items": [], "at": 0.0}
 lock = asyncio.Lock()
@@ -120,7 +134,8 @@ async def logo(_):
 
 
 async def products(_):
-    return web.json_response({"items": await load()}, headers={"Cache-Control": "no-store"})
+    return web.json_response({"items": await load(), "plan": PLAN},
+                             headers={"Cache-Control": "no-store"})
 
 
 async def order(req):
@@ -134,20 +149,37 @@ async def order(req):
     by_id = {i["id"]: i for i in await load()}
     chosen = [by_id[i] for i in (body.get("items") or [])[:20] if i in by_id]
     phone = str(body.get("phone") or "")[:30]
+    try:
+        months = int(body.get("months") or 0)
+    except (TypeError, ValueError):
+        months = 0
+    if not PLAN["min"] <= months <= PLAN["max"]:
+        months = 0
     if not chosen:
         return web.json_response({"ok": False, "error": "empty"}, status=400)
 
-    totals = {}
+    totals, downs, monthlies = {}, {}, {}
     lines = []
     for it in chosen:
         p = it["promo"] or it["price"]
-        totals[it["currency"]] = totals.get(it["currency"], 0) + p
-        lines.append("• %s — %s" % (it["name"], money(p, it["currency"])))
+        c = it["currency"]
+        totals[c] = totals.get(c, 0) + p
+        lines.append("• %s — %s" % (it["name"], money(p, c)))
+        if months:
+            d, mo, _ = plan_calc(p, months)
+            downs[c] = downs.get(c, 0) + d
+            monthlies[c] = monthlies.get(c, 0) + mo
+    join = lambda dct: " + ".join(money(v, c) for c, v in dct.items())
+    if months:
+        pay = ("Bo'lib to'lash: %s oy\nBoshlang'ich: %s\nOyiga: %s"
+               % (months, join(downs), join(monthlies)))
+    else:
+        pay = "To'lov: to'liq"
     who = (user.get("first_name") or "") + " " + (user.get("last_name") or "")
     uname = "@" + user["username"] if user.get("username") else "username yo'q"
-    text = ("🛒 Yangi buyurtma (Mini App)\n\nMijoz: %s (%s)\nTelefon: %s\nID: %s\n\n%s\n\nJami: %s"
+    text = ("🛒 Yangi buyurtma (Mini App)\n\nMijoz: %s (%s)\nTelefon: %s\nID: %s\n\n%s\n\nJami: %s\n%s"
             % (who.strip(), uname, phone or "—", user.get("id"), "\n".join(lines),
-               " + ".join(money(v, c) for c, v in totals.items())))
+               join(totals), pay))
     bot = ctx["bot"]
     try:
         await bot.send_message(int(ADMIN), text)
@@ -156,7 +188,7 @@ async def order(req):
         return web.json_response({"ok": False, "error": "admin"}, status=500)
     try:
         await bot.send_message(user["id"], "Rahmat! Buyurtmangiz qabul qilindi, "
-                               "menejerimiz tez orada bog'lanadi.\n\n" + "\n".join(lines))
+                               "menejerimiz tez orada bog'lanadi.\n\n" + "\n".join(lines) + "\n\n" + pay)
     except Exception:
         pass
     log.info("BOT: Mini App buyurtma: %s ta tovar", len(chosen))
