@@ -30,7 +30,7 @@ def plan_calc(price, months):
     return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
-rate_cache = {"rate": None, "date": "", "src": "", "at": 0.0, "busy": False}
+rate_cache = {"rate": None, "date": "", "src": "", "at": 0.0, "busy": False, "task": None, "diag": {}}
 CBU = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/%s"
 RATE_TTL = 3600                                            # kurs har soatda tekshiriladi
 RATE_EXTRA = float(os.environ.get("USD_RATE_EXTRA", "0"))  # kursga qo'shimcha so'm
@@ -82,7 +82,7 @@ def usd_rate():
     """Saqlangan kursni darrov qaytaradi; eskirgan bo'lsa orqa fonda yangilaydi."""
     if time.time() - rate_cache["at"] > RATE_TTL and not rate_cache["busy"]:
         rate_cache["busy"] = True
-        asyncio.get_event_loop().create_task(refresh_rate())
+        rate_cache["task"] = asyncio.get_event_loop().create_task(refresh_rate())
     return rate_cache["rate"], rate_cache["date"] + (" · " + rate_cache["src"] if rate_cache["src"] else "")
 
 
@@ -106,14 +106,16 @@ async def _refresh_rate():
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
             got = await _cbu_day(session, today) or await _cbu_day(session, None)  # bugungi, bo'lmasa oxirgisi
             cbu = got[0] if got and got[0] > 0 else None
+            rate_cache["diag"] = {"cbu.uz": cbu}
             buys = []
             for url in BANK_PAGES:
                 try:
                     async with session.get(url, headers=UA) as r:
                         page = await r.text(errors="ignore")
                     buys = buy_rates_from_html(page, cbu)
-                except Exception:
-                    log.warning("BOT: %s ochilmadi", url)
+                except Exception as e:
+                    log.warning("BOT: %s ochilmadi: %r", url, e)
+                rate_cache["diag"][url.split("/")[2]] = len(buys)
                 if len(buys) >= 3:
                     break
         if len(buys) >= 3:
@@ -232,6 +234,11 @@ async def index(_):
                             headers={"Cache-Control": "no-cache"})
 
 
+async def rate_info(_):
+    rate, rdate = usd_rate()
+    return web.json_response({"rate": rate, "date": rdate, "topilgan": rate_cache.get("diag")})
+
+
 async def logo(_):
     return web.FileResponse(os.path.join(HERE, "logo.png"),
                             headers={"Cache-Control": "public, max-age=86400"})
@@ -239,6 +246,13 @@ async def logo(_):
 
 async def products(_):
     rate, rdate = usd_rate()
+    if rate is None and rate_cache["task"]:
+        # birinchi ochilishda kurs hali kelmagan bo'lsa, tovarlar bilan birga kutamiz (ko'pi 12 soniya)
+        try:
+            await asyncio.wait_for(asyncio.shield(rate_cache["task"]), 12)
+        except Exception:
+            pass
+        rate, rdate = usd_rate()
     items = await load()
     return web.json_response({"items": items, "plan": PLAN, "usd_uzs": rate, "rate_date": rdate},
                              headers={"Cache-Control": "no-store"})
@@ -310,6 +324,7 @@ def make_app(bot, billz_products, num):
     app = web.Application()
     app.router.add_get("/", index)
     app.router.add_get("/logo.png", logo)
+    app.router.add_get("/api/rate", rate_info)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     return app
