@@ -107,10 +107,19 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .mo{font-size:12px;color:var(--blue);font-weight:500;margin-top:2px}
 .plan{background:var(--bg);border-radius:16px;padding:14px;margin:18px 0 6px}
 .plan h3{font-size:15px;font-weight:600;margin-bottom:10px}
-.mch{display:flex;flex-wrap:wrap;gap:6px}
+.mch{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--chip);border-radius:12px;padding:3px;margin-bottom:10px}
+.seg button{border:0;border-radius:9px;padding:8px;background:none;color:var(--tx);font-size:14px;font-weight:500}
+.seg button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.12);font-weight:600}
 .mch::-webkit-scrollbar{display:none}
-.m{flex:1 0 auto;min-width:42px;border:0;border-radius:10px;padding:9px 8px;background:var(--chip);color:var(--tx);font-weight:600;font-size:14px}
+.m{min-width:0;border:0;border-radius:10px;padding:9px 0;background:var(--chip);color:var(--tx);font-weight:600;font-size:14px}
 .m.on{background:var(--blue);color:var(--blue-tx)}
+.soon{display:flex;gap:12px;align-items:flex-start}
+.soon-i{flex:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;
+  background:linear-gradient(135deg,#40349a,#8f7dff)}
+.soon b{display:block;font-size:15px;font-weight:600}
+.soon span{display:block;color:var(--tx2);font-size:13px;margin-top:2px;line-height:1.4}
+.pnote{color:var(--tx2);font-size:12px;margin-top:10px;line-height:1.4}
 .pl{display:flex;justify-content:space-between;padding-top:10px;font-size:15px}
 .pl span{color:var(--tx2)}
 .pl b{font-weight:600}
@@ -241,7 +250,7 @@ function render() {
         <div class="sp">${esc(specs(i))}</div>
         <div class="foot">
           <div class="pr">${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}${money(cost(i), i.currency)}
-            <div class="mo">oyiga ${money(calc(cost(i), plan.max).monthly, i.currency)} dan</div></div>
+            ${i.mac ? `<div class="mo">oyiga ${money(calc(cost(i), plan.max).monthly, i.currency)} dan</div>` : ""}</div>
           <button class="add ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}" aria-label="Savatga">${cart.has(i.id) ? "✓" : "+"}</button>
         </div>
       </div>
@@ -294,7 +303,10 @@ function openItem(id) {
   }, {passive: true});
   setMain("", null);
 }
+const SOON = `<div class="soon"><div class="soon-i">✨</div><div><b>Bo'lib to'lash tez orada</b>
+  <span>Hozircha muddatli to'lov faqat MacBooklar uchun. Bu mahsulotga ham yaqinda qo'shamiz.</span></div></div>`;
 function itemPlan(i) {
+  if (!i.mac) return SOON;
   const c = calc(cost(i), itemM), cur = i.currency;
   return `<h3>Bo'lib to'lash</h3>
     <div class="mch">${months().map(m => `<button class="m ${m === itemM ? "on" : ""}" data-im="${m}">${m} oy</button>`).join("")}</div>
@@ -303,13 +315,17 @@ function itemPlan(i) {
     ${plan.pct ? `<div class="pl"><span>Jami</span><b>${money(c.total, cur)}</b></div>` : ""}`;
 }
 function cartPlan(list) {
-  let h = `<h3>To'lov turi</h3><div class="mch">
-    <button class="m ${payM ? "" : "on"}" data-pm="0">To'liq</button>
-    ${months().map(m => `<button class="m ${m === payM ? "on" : ""}" data-pm="${m}">${m} oy</button>`).join("")}</div>`;
+  const macs = list.filter(i => i.mac), other = list.filter(i => !i.mac);
+  if (!macs.length) { payM = 0; return SOON; }
+  let h = `<h3>To'lov turi</h3><div class="seg">
+    <button class="${payM ? "" : "on"}" data-pm="0">To'liq to'lash</button>
+    <button class="${payM ? "on" : ""}" data-pm="${payM || plan.max}">Bo'lib to'lash</button></div>
+    ${payM ? `<div class="mch">${months().map(m => `<button class="m ${m === payM ? "on" : ""}" data-pm="${m}">${m} oy</button>`).join("")}</div>` : ""}`;
   if (payM) {
-    h += `<div class="pl"><span>Boshlang'ich to'lov (${plan.down}%)</span><b>${sumBy(list, i => calc(cost(i), payM).down)}</b></div>
-      <div class="pl hi"><span>Oyiga · ${payM} oy</span><b>${sumBy(list, i => calc(cost(i), payM).monthly)}</b></div>
-      ${plan.pct ? `<div class="pl"><span>Jami</span><b>${sumBy(list, i => calc(cost(i), payM).total)}</b></div>` : ""}`;
+    h += `<div class="pl"><span>Boshlang'ich to'lov${other.length ? "" : ` (${plan.down}%)`}</span><b>${sumBy(list, i => i.mac ? calc(cost(i), payM).down : cost(i))}</b></div>
+      <div class="pl hi"><span>Oyiga · ${payM} oy</span><b>${sumBy(macs, i => calc(cost(i), payM).monthly)}</b></div>
+      ${plan.pct ? `<div class="pl"><span>Jami</span><b>${sumBy(list, i => i.mac ? calc(cost(i), payM).total : cost(i))}</b></div>` : ""}
+      ${other.length ? `<div class="pnote">✨ Muddatli to'lov faqat MacBooklarga. Boshqa mahsulotlar boshlang'ich to'lov bilan birga to'liq to'lanadi.</div>` : ""}`;
   }
   return h;
 }

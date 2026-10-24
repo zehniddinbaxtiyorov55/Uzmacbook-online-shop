@@ -23,6 +23,14 @@ PLAN = {
 }
 
 
+MAC_RX = re.compile(r"macbook|\bmbp\b|\bmba\b", re.I)
+
+
+def is_mac(name, category, details):
+    """Bo'lib to'lash hozircha faqat MacBooklar uchun."""
+    return bool(MAC_RX.search(" ".join([name, category] + [v for _, v in details])))
+
+
 def plan_calc(price, months):
     down = math.ceil(price * PLAN["down"] / 100)
     rest = round((price - down) * (1 + PLAN["pct"] / 100 * months), 2)
@@ -187,6 +195,7 @@ def to_item(p):
         "qty": qty if stocks else None,
         "photos": photos_of(p),
         "stock": stock_photos(name, details),
+        "mac": is_mac(name, cats[-1] if cats else "", details),
         "details": details[:12],
     }
 
@@ -277,6 +286,8 @@ async def order(req):
         months = 0
     if not chosen:
         return web.json_response({"ok": False, "error": "empty"}, status=400)
+    if not any(it.get("mac") for it in chosen):
+        months = 0
 
     totals, downs, monthlies = {}, {}, {}
     lines = []
@@ -285,16 +296,19 @@ async def order(req):
         c = it["currency"]
         totals[c] = totals.get(c, 0) + p
         lines.append("• %s — %s" % (it["name"], money(p, c)))
-        if months:
+        if months and it.get("mac"):
             d, mo, _ = plan_calc(p, months)
             downs[c] = downs.get(c, 0) + d
             monthlies[c] = monthlies.get(c, 0) + mo
+        elif months:
+            downs[c] = downs.get(c, 0) + p  # MacBook emas — to'liq to'lanadi
     join = lambda dct: " + ".join(money(v, c) for c, v in dct.items())
     if months:
         totals2 = {}
         for it in chosen:
             c = it["currency"]
-            totals2[c] = totals2.get(c, 0) + plan_calc(it["promo"] or it["price"], months)[2]
+            p = it["promo"] or it["price"]
+            totals2[c] = totals2.get(c, 0) + (plan_calc(p, months)[2] if it.get("mac") else p)
         pay = ("Bo'lib to'lash: %s oy (+%g%% oyiga)\nBoshlang'ich: %s\nOyiga: %s\nBo'lib to'lashda jami: %s"
                % (months, PLAN["pct"], join(downs), join(monthlies), join(totals2)))
     else:
