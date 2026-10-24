@@ -148,6 +148,7 @@ async def main():
                               allowed_updates=dp.resolve_used_update_types())
         log.info("BOT: webhook rejimi: %s", webapp.URL)
         asyncio.create_task(webapp.load())
+        asyncio.create_task(webapp.refresh_rate())
         await asyncio.Event().wait()
     else:
         await bot.delete_webhook()

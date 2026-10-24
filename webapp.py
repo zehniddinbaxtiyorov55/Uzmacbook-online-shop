@@ -1,5 +1,6 @@
 """Telegram Mini App do'kon: Billz tovarlari (rasm, narx, qoldiq) + savat + buyurtma."""
-import asyncio, hashlib, hmac, json, logging, math, os, time
+import asyncio, datetime, hashlib, hmac, json, logging, math, os, time
+import aiohttp
 from urllib.parse import parse_qsl
 from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
@@ -29,6 +30,66 @@ def plan_calc(price, months):
     return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
+rate_cache = {"rate": None, "date": "", "at": 0.0, "busy": False}
+CBU = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/%s/"
+RATE_DAYS = 7                                              # necha kunlik kurs ko'riladi
+RATE_EXTRA = float(os.environ.get("USD_RATE_EXTRA", "0"))  # kursga qo'shimcha so'm
+
+
+async def _cbu_day(session, day):
+    try:
+        async with session.get(CBU % day.isoformat()) as r:
+            data = await r.json(content_type=None)
+        for row in data if isinstance(data, list) else [data]:
+            low = {str(k).lower(): v for k, v in row.items()}
+            if str(low.get("ccy", "")).upper() == "USD":
+                return float(str(low.get("rate")).replace(",", ".")), str(low.get("date", ""))
+    except Exception:
+        pass
+    return None
+
+
+def usd_rate():
+    """Saqlangan kursni darrov qaytaradi; eskirgan bo'lsa orqa fonda yangilaydi."""
+    if time.time() - rate_cache["at"] > 3 * 3600 and not rate_cache["busy"]:
+        rate_cache["busy"] = True
+        asyncio.get_event_loop().create_task(refresh_rate())
+    return rate_cache["rate"], rate_cache["date"]
+
+
+async def refresh_rate():
+    """Markaziy bank: oxirgi 7 kundagi eng baland USD kursi, 10 so'mgacha yuqoriga yaxlitlangan."""
+    try:
+        await asyncio.wait_for(_refresh_rate(), 30)
+    except Exception:
+        log.warning("BOT: MB kursi 30 soniyada kelmadi")
+        if not rate_cache["rate"] and os.environ.get("USD_RATE"):
+            rate_cache.update(rate=float(os.environ["USD_RATE"]), date="qo'lda", at=time.time())
+        if not rate_cache["rate"]:
+            rate_cache["at"] = time.time() - 3 * 3600 + 300
+    finally:
+        rate_cache["busy"] = False
+
+
+async def _refresh_rate():
+    today = datetime.date.today()
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+            got = await asyncio.gather(*[_cbu_day(session, today - datetime.timedelta(days=k))
+                                         for k in range(RATE_DAYS)])
+        got = [g for g in got if g and g[0] > 0]
+        if got:
+            hi, day = max(got)
+            lo = min(g[0] for g in got)
+            rate = math.ceil((hi + RATE_EXTRA) / 10) * 10
+            rate_cache.update(rate=rate, date=day, at=time.time())
+            log.info("BOT: MB kursi: eng past %s, eng baland %s (%s) -> %s", lo, hi, day, rate)
+    except Exception:
+        log.exception("BOT: MB kursini olib bo'lmadi")
+    if not rate_cache["rate"] and os.environ.get("USD_RATE"):
+        rate_cache.update(rate=float(os.environ["USD_RATE"]), date="qo'lda", at=time.time())
+    if not rate_cache["rate"]:
+        rate_cache["at"] = time.time() - 3 * 3600 + 300  # 5 daqiqadan keyin qayta urinadi
 lock = asyncio.Lock()
 ctx = {}
 
@@ -135,7 +196,9 @@ async def logo(_):
 
 
 async def products(_):
-    return web.json_response({"items": await load(), "plan": PLAN},
+    rate, rdate = usd_rate()
+    items = await load()
+    return web.json_response({"items": items, "plan": PLAN, "usd_uzs": rate, "rate_date": rdate},
                              headers={"Cache-Control": "no-store"})
 
 

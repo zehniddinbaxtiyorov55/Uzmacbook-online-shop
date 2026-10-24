@@ -102,6 +102,8 @@ button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .tel{width:100%;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);color:var(--tx);font:inherit;outline:none}
 .tel:focus{border-color:var(--blue)}
 .note{color:var(--tx2);font-size:13px;margin-top:10px}
+.uzs{font-size:17px;font-weight:500;color:var(--tx2);margin-top:2px}
+.rate{font-size:12px;color:var(--tx2);margin-top:2px}
 .mo{font-size:12px;color:var(--blue);font-weight:500;margin-top:2px}
 .plan{background:var(--bg);border-radius:16px;padding:14px;margin:18px 0 6px}
 .plan h3{font-size:15px;font-weight:600;margin-bottom:10px}
@@ -146,7 +148,13 @@ if (tg) {
 }
 
 let items = [], cat = "Hammasi", view = null;
-let plan = {down: 50, min: 3, max: 8, pct: 6}, itemM = 8, payM = 0;
+let plan = {down: 50, min: 3, max: 8, pct: 6}, usdUzs = null, rateDate = "", itemM = 8, payM = 0;
+function uzs(i) {
+  if (!usdUzs || !/usd|\$/i.test(i.currency || "USD")) return "";
+  const v = Math.round(cost(i) * usdUzs / 1000) * 1000;
+  return `<div class="uzs">≈ ${v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm</div>
+    <div class="rate">Kurs: 1$ = ${String(usdUzs).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm · Markaziy bank${rateDate ? ", " + esc(rateDate) : ""}</div>`;
+}
 function calc(price, m) {
   const down = Math.ceil(price * plan.down / 100);
   const rest = Math.round((price - down) * (1 + plan.pct / 100 * m) * 100) / 100;
@@ -270,6 +278,7 @@ function openItem(id) {
     ${gal}
     <div class="ttl">${esc(i.name)}</div>
     <div class="big">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
+    ${uzs(i)}
     ${i.qty !== null && i.qty <= 2 ? `<div class="stock">Atigi ${i.qty} ta qoldi</div>` : ""}
     <div class="specs">
       ${i.brand ? `<div><span>Brend</span><span>${esc(i.brand)}</span></div>` : ""}
@@ -369,6 +378,7 @@ skeleton();
 fetch("api/products").then(r => r.json()).then(d => {
   items = d.items || [];
   if (d.plan) { plan = d.plan; itemM = plan.max; }
+  usdUzs = d.usd_uzs || null; rateDate = d.rate_date || "";
   $("#sub").textContent = items.length ? `${items.length} ta model · narxlar real vaqtda` : "Hozircha tovar yo'q";
   renderCats(); render(); refreshMain();
 }).catch(() => { $("#grid").innerHTML = `<div class="msg">Yuklab bo'lmadi. Qayta oching.</div>`; });
