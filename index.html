@@ -34,7 +34,7 @@ svg{display:block}
 #cats::-webkit-scrollbar{display:none}
 .cat{flex:none;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:76px}
 .cat .ci{width:48px;height:48px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--tx2);transition:.2s}
-.cat span{font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px}
+.cat span{font-size:11px;line-height:1.25;color:var(--tx2);text-align:center;max-width:76px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cat.on .ci{background:var(--ink);color:var(--ink-tx);box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--blue)}
 .cat.on span{color:var(--tx);font-weight:600}
 
@@ -205,18 +205,44 @@ const I = {
   phone: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg>`,
   tab: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M11 17.5h2"/></svg>`,
   acc: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>`,
+  head: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>`,
+  glasses: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="14" r="3.5"/><circle cx="17.5" cy="14" r="3.5"/><path d="M10 14c.7-1 3.3-1 4 0M3 13l1.5-5h2M21 13l-1.5-5h-2"/></svg>`,
+  vr: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-2.5h-4L8 17H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/><circle cx="7.5" cy="12.5" r="1.3"/><circle cx="16.5" cy="12.5" r="1.3"/></svg>`,
+  game: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9h10a4 4 0 0 1 3.9 4.9l-.6 2.6a2 2 0 0 1-3.5.8L15 15H9l-1.8 2.3a2 2 0 0 1-3.5-.8l-.6-2.6A4 4 0 0 1 7 9z"/><path d="M8 11.5v2.5M6.75 12.75h2.5"/><circle cx="15.5" cy="12" r=".6"/><circle cx="17" cy="13.5" r=".6"/></svg>`,
+  cam: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  speaker: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><circle cx="12" cy="14.5" r="3"/><circle cx="12" cy="7.5" r="1"/></svg>`,
+  monitor: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20h8"/></svg>`,
+  kbd: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="2"/><path d="M6 10.5h.01M9 10.5h.01M12 10.5h.01M15 10.5h.01M18 10.5h.01M7.5 14h9"/></svg>`,
+  mouse: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/></svg>`,
+  plug: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M7 7h10v3a5 5 0 0 1-10 0V7zM12 15v6"/></svg>`,
+  tag: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>`,
   watch: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="6.5" y="6" width="11" height="12" rx="3"/><path d="M9 6l.5-3h5l.5 3M9 18l.5 3h5l.5-3"/></svg>`,
   bag: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`,
 };
+const CAT_ICONS = [
+  [/\bvr\b|virtual|vision pro|oculus|quest/, "vr"],
+  [/ko.?zoynak|glasses|ochki|очки|ray.?ban/, "glasses"],
+  [/airpods|quloqchin|naushnik|наушник|headphone|earbud|garnitura|гарнитур/, "head"],
+  [/smartfon|smartphone|iphone|phone|telefon|телефон|samsung|xiaomi|pixel/, "phone"],
+  [/ipad|plansh|tablet|планшет/, "tab"],
+  [/watch|soat|часы/, "watch"],
+  [/macbook|noutbuk|laptop|ноутбук|\bmba\b|\bmbp\b/, "mac"],
+  [/imac|monitor|displey|монитор|\btv\b|televizor/, "monitor"],
+  [/playstation|\bps[45]\b|konsol|консол|xbox|nintendo|gamepad|joystick|o.?yin/, "game"],
+  [/kamera|camera|камера|gopro|dron|drone/, "cam"],
+  [/kolonka|колонк|speaker|homepod|jbl|marshall/, "speaker"],
+  [/klaviatura|keyboard|клавиатур/, "kbd"],
+  [/mouse|sichqon|мыш|trackpad/, "mouse"],
+  [/zaryad|kabel|adapter|charger|power ?bank|зарядк|кабел|magsafe/, "plug"],
+  [/aksessuar|аксессуар|accessor/, "plug"],
+];
 function catIcon(n) {
   n = n.toLowerCase();
   if (n === "hammasi") return I.all;
-  if (/mac|air|pro|noutbuk|laptop/.test(n)) return I.mac;
-  if (/iphone|phone|telefon/.test(n)) return I.phone;
-  if (/ipad|plansh/.test(n)) return I.tab;
-  if (/watch|soat/.test(n)) return I.watch;
-  return I.acc;
+  for (const [rx, k] of CAT_ICONS) if (rx.test(n)) return I[k];
+  return I.tag;
 }
+const catLabel = n => n.split(/\s*[>\/]\s*/).filter(Boolean).pop() || n;
 
 function money(v, c) {
   v = Math.round(v * 100) / 100;
@@ -288,14 +314,14 @@ function refreshMain() {
 function renderCats() {
   const names = ["Hammasi", ...new Set(items.map(i => i.category))];
   $("#cats").innerHTML = names.map(n => `<button class="cat ${n === cat ? "on" : ""}" data-c="${esc(n)}">
-    <div class="ci">${catIcon(n)}</div><span>${esc(n)}</span></button>`).join("");
+    <div class="ci">${catIcon(n)}</div><span title="${esc(n)}">${esc(catLabel(n))}</span></button>`).join("");
 }
 function render() {
   const q = $("#q").value.trim().toLowerCase();
   const list = items.filter(i =>
     (cat === "Hammasi" || i.category === cat) &&
     (!q || (i.name + " " + i.brand + " " + i.details.map(d => d.join(" ")).join(" ")).toLowerCase().includes(q)));
-  $("#secTitle").textContent = cat === "Hammasi" ? "Barcha mahsulotlar" : cat;
+  $("#secTitle").textContent = cat === "Hammasi" ? "Barcha mahsulotlar" : catLabel(cat);
   $("#secCount").textContent = list.length ? `${list.length} ta` : "";
   $("#grid").innerHTML = list.length ? list.map(i => {
     const P = pics(i);
