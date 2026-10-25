@@ -151,6 +151,21 @@ def _mac(t, n=""):
     return MP + "macbook-pro-2018-13in-device.jpg"
 
 
+# Apple bo'lmagan mahsulotlar — Wikimedia Commons (erkin litsenziya, manbasi sahifada yoziladi)
+WM = "https://commons.wikimedia.org/wiki/Special:FilePath/%s?width=900"
+OTHER = [
+    (re.compile(r"\bquest\b"), ["Meta_Quest_3_front_View.jpg", "Meta_Quest_3_display_unit.jpg"]),
+    (re.compile(r"ray-?ban|rayban"), ["Ray-Ban_Meta_Gen_1_smart_glasses_with_charging_case.jpg",
+                                     "Ray_Ban_Meta_at_the_2025_Bild_Expo_Presented_by_B%26H_Photo.jpg"]),
+    (re.compile(r"airpods\s*max"), ["Apple_airpods_max_3.jpg", "Apple_AirPods_Max_6.jpg", "Apple_airpods_max_with_case.jpg"]),
+    (re.compile(r"playstation\s*5|\bps5\b"), ["PlayStation_5_and_DualSense_with_transparent_background.png",
+                                              "PlayStation_5_and_DualSense.jpg"]),
+    (re.compile(r"vision\s*pro"), ["Apple_Vision_Pro_with_charger_(cropped).jpg", "Apple_Vision_Pro_on_display.jpg"]),
+    (re.compile(r"s22\s*ultra"), ["SAMSUNG_Galaxy_S22_Ultra_BLACK.jpg", "Back_of_the_Samsung_Galaxy_S22_Ultra.jpg"]),
+    (re.compile(r"s25\s*ultra"), ["Samsung_Galaxy_S25_Ultra.jpg", "Samsung_Galaxy_S25_Ultra_2025.jpg"]),
+    (re.compile(r"magic\s*keyboard.*ipad|ipad.*magic\s*keyboard"), ["Magic_Keyboard_for_iPad_Pro_-_2.jpg"]),
+]
+
 NOT_APPLE = re.compile(r"galaxy|samsung|xiaomi|redmi|poco|honor|huawei|pixel|oneplus|meta\b|oakley|ray-?ban|quest|playstation|\bps[45]\b|sony|garmin|amazfit")
 ACCESSORY = re.compile(r"keyboard|klaviatura|pencil|qalam|chexol|case\b|plyonka|himoya|maxfiy|shaffof|\bmat\b|matoviy|zaryad|kabel|cable|adapter|"
                        r"charger|\b\d{2,3}\s*w\b|mouse|sichqon|trackpad|stand|sumka|bag\b|hub\b")
@@ -160,6 +175,9 @@ def stock_photos(name, details, category=""):
     n = name.lower().replace("”", '"')
     t = (n + " " + " ".join(v for _, v in details).lower()).replace("”", '"')
     c = category.lower()
+    for rx, files in OTHER:
+        if rx.search(n):
+            return [WM % f for f in files]
     if NOT_APPLE.search(n) or ACCESSORY.search(n) or ACCESSORY.search(c):
         return []
     is_mac = "macbook" in t or "macbook" in c or re.search(r"\b(mba|mbp)\b", t)

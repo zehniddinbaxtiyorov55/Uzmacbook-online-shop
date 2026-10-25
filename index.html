@@ -375,7 +375,7 @@ function openItem(id) {
       <button class="ib" data-close style="left:16px" aria-label="Orqaga">${I.back}</button>
       ${P.list.length ? `<div class="gal" id="gal">${P.stock ? imgTag(P.list) : P.list.map(u => `<img src="${esc(u)}" alt="">`).join("")}</div>` : ICON}
       ${multi ? `<div class="dots">${P.list.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
-      ${P.stock && P.list.length ? `<div class="demo">Namunaviy rasm · haqiqiy holatini menejerdan so'rang</div>` : ""}
+      ${P.stock && P.list.length ? `<div class="demo">Namunaviy rasm${/wikimedia/.test(P.list[0]) ? " (Wikimedia Commons)" : ""} · haqiqiy holatini menejerdan so'rang</div>` : ""}
     </div>
     <div class="body">
       <div class="hd">
