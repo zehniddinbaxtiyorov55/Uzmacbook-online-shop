@@ -153,17 +153,27 @@ def _mac(t, n=""):
 
 # Apple bo'lmagan mahsulotlar — Wikimedia Commons (erkin litsenziya, manbasi sahifada yoziladi)
 WM = "https://commons.wikimedia.org/wiki/Special:FilePath/%s?width=900"
+RB = "https://images2.ray-ban.com//prod-onecp-record-files/pieyewear/"
+OK = "https://assets2.oakley.com/prod-onecp-record-files/pieyewear/"
 OTHER = [
-    (re.compile(r"\bquest\b"), ["Meta_Quest_3_front_View.jpg", "Meta_Quest_3_display_unit.jpg"]),
-    (re.compile(r"ray-?ban|rayban"), ["Ray-Ban_Meta_Gen_1_smart_glasses_with_charging_case.jpg",
-                                     "Ray_Ban_Meta_at_the_2025_Bild_Expo_Presented_by_B%26H_Photo.jpg"]),
-    (re.compile(r"airpods\s*max"), ["Apple_airpods_max_3.jpg", "Apple_AirPods_Max_6.jpg", "Apple_airpods_max_with_case.jpg"]),
-    (re.compile(r"playstation\s*5|\bps5\b"), ["PlayStation_5_and_DualSense_with_transparent_background.png",
-                                              "PlayStation_5_and_DualSense.jpg"]),
-    (re.compile(r"vision\s*pro"), ["Apple_Vision_Pro_with_charger_(cropped).jpg", "Apple_Vision_Pro_on_display.jpg"]),
-    (re.compile(r"s22\s*ultra"), ["SAMSUNG_Galaxy_S22_Ultra_BLACK.jpg", "Back_of_the_Samsung_Galaxy_S22_Ultra.jpg"]),
-    (re.compile(r"s25\s*ultra"), ["Samsung_Galaxy_S25_Ultra.jpg", "Samsung_Galaxy_S25_Ultra_2025.jpg"]),
-    (re.compile(r"magic\s*keyboard.*ipad|ipad.*magic\s*keyboard"), ["Magic_Keyboard_for_iPad_Pro_-_2.jpg"]),
+    # Rasmiy saytlar (oq fon): ray-ban.com, oakley.com, apple.com, meta.com
+    (re.compile(r"display|displey"), [RB + "641fd943-3c69-4688-b6f9-b3a001803c40/0HX000001__0101M__P21__shad__qt.png",
+                                      RB + "641fd943-3c69-4688-b6f9-b3a001803c40/0HX000001__0101M__P21__shad__qt.png?impolicy=RB_RB_FBShare"]),
+    (re.compile(r"ray-?ban|rayban"), [RB + "758939e5-a88b-4a4d-abf4-b3a10041ca6e/0RW4012__601S1Z__P21__shad__qt.png",
+                                     RB + "758939e5-a88b-4a4d-abf4-b3a10041ca6e/0RW4012__601S1Z__P21__shad__qt.png?impolicy=RB_RB_FBShare"]),
+    (re.compile(r"oakley.*vanguard"), [OK + "50c7b966-dbd1-48f2-9119-b410014fc0b6/0OW8001__800107__P21__shad__qt.png"]),
+    (re.compile(r"oakley"), [OK + "70faf232-bf72-4b10-873e-b3bf0084ddf0/0OW8002__800208__P21__shad__qt.png",
+                             OK + "98725816-8b01-4fcb-8033-b39c00783cae/0OW8002__800202__P21__shad__qt.png?impolicy=OO_ratio&width=900"]),
+    (re.compile(r"vision\s*pro.*m5|m5.*vision\s*pro"), [APPLE + "vision-pro/apple-vision-pro-m5.png"]),
+    (re.compile(r"vision\s*pro"), [APPLE + "vision-pro/apple-vision-pro.png"]),
+    (re.compile(r"airpods\s*max"), [APPLE + "tech-specs/121205-airpods-max.png"]),
+    (re.compile(r"magic\s*keyboard"), ["https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/MWR53?wid=1144&hei=1144&fmt=jpeg&qlt=90"]),
+    (re.compile(r"\bquest\b"), ["https://lookaside.fbsbx.com/elementpath/media/?media_id=157327897433582&version=1792013363&transcode_extension=webp",
+                                 WM % "Meta_Quest_3_front_View.jpg"]),
+    # Wikimedia Commons (rasmiy oq fonli rasm topilmadi)
+    (re.compile(r"playstation\s*5|\bps5\b"), [WM % "PlayStation_5_and_DualSense_with_transparent_background.png"]),
+    (re.compile(r"s22\s*ultra"), [WM % "SAMSUNG_Galaxy_S22_Ultra_BLACK.jpg"]),
+    (re.compile(r"s25\s*ultra"), [WM % "Samsung_Galaxy_S25_Ultra.jpg"]),
 ]
 
 NOT_APPLE = re.compile(r"galaxy|samsung|xiaomi|redmi|poco|honor|huawei|pixel|oneplus|meta\b|oakley|ray-?ban|quest|playstation|\bps[45]\b|sony|garmin|amazfit")
@@ -177,7 +187,7 @@ def stock_photos(name, details, category=""):
     c = category.lower()
     for rx, files in OTHER:
         if rx.search(n):
-            return [WM % f for f in files]
+            return list(files)
     if NOT_APPLE.search(n) or ACCESSORY.search(n) or ACCESSORY.search(c):
         return []
     is_mac = "macbook" in t or "macbook" in c or re.search(r"\b(mba|mbp)\b", t)

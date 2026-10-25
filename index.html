@@ -73,6 +73,12 @@ svg{display:block}
 .pr{font-size:15px;font-weight:700;margin-top:4px}
 .pr small{font-size:12px;font-weight:500;color:var(--tx2);text-decoration:line-through;margin-left:6px}
 .mo{font-size:11px;font-weight:600;color:var(--accent);margin-top:2px}
+.bt{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.bt span{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:3px 7px;border-radius:8px;background:var(--soft);color:var(--tx)}
+.bt span svg{width:14px;height:14px}
+.bt .g{color:#1a8f3c}.bt .y{color:#b26a00}.bt .r{color:#d70015}
+html.dark .bt .g{color:#30d158}html.dark .bt .y{color:#ffd60a}html.dark .bt .r{color:#ff453a}
+.body .bt{margin-top:12px}.body .bt span{font-size:13px;padding:6px 10px;border-radius:10px}.body .bt span svg{width:17px;height:17px}
 .msg{grid-column:1/-1;text-align:center;color:var(--tx2);padding:48px 0}
 .sk .ph,.sk .l{background:linear-gradient(90deg,var(--img) 25%,var(--soft) 50%,var(--img) 75%);background-size:200% 100%;animation:sh 1.2s infinite}
 .sk .l{height:11px;border-radius:6px;margin-top:9px}
@@ -279,6 +285,19 @@ window.nextImg = function (el) {
   if (rest.length) { el.dataset.alt = rest.slice(1).join("|"); el.src = rest[0]; }
   else { const p = el.closest(".stock"); p && p.classList.remove("stock"); el.outerHTML = ICON; }
 };
+function batt(i) {
+  let b = null, c = null;
+  for (const [k, v] of i.details) {
+    const key = k.toLowerCase();
+    if (b === null && /batar|battery|акб|батар|health|sog'?liq/.test(key)) { const m = String(v).match(/\d{2,3}/); if (m) b = +m[0]; }
+    if (c === null && /sikl|cycle|цикл/.test(key)) { const m = String(v).match(/\d+/); if (m) c = +m[0]; }
+  }
+  if (b === null && c === null) return "";
+  const cls = b === null ? "" : b >= 90 ? "g" : b >= 80 ? "y" : "r";
+  const ic = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M21.5 10.5v3" stroke-linecap="round"/>${b === null ? "" : `<rect x="4.5" y="9" width="${Math.max(1, Math.round(13 * Math.min(b, 100) / 100))}" height="6" rx="1" fill="currentColor" stroke="none"/>`}</svg>`;
+  const cy = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>`;
+  return `<div class="bt">${b !== null ? `<span class="${cls}">${ic}${b}%</span>` : ""}${c !== null ? `<span>${cy}${c} sikl</span>` : ""}</div>`;
+}
 function specs(i) { return i.details.slice(0, 3).map(d => d[1]).join(" · "); }
 function haptic(t) { try { tg.HapticFeedback.impactOccurred(t || "light"); } catch (e) {} }
 
@@ -332,6 +351,7 @@ function render() {
         <button class="add ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}" aria-label="Savatga">${cart.has(i.id) ? I.check : I.plus}</button>
       </div>
       <div class="nm">${esc(i.name)}</div>
+      ${batt(i)}
       <div class="pr">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
       ${i.mac ? `<div class="mo">oyiga ${money(calc(cost(i), plan.max).monthly, i.currency)} dan</div>` : ""}
     </div>`;
@@ -382,6 +402,7 @@ function openItem(id) {
         <h3>${esc(i.name)}</h3>
         <div class="pr">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
       </div>
+      ${batt(i)}
       ${uzs(i)}
       ${i.qty !== null && i.qty <= 2 ? `<div class="qleft">Atigi ${i.qty} ta qoldi</div>` : ""}
       <div class="blk"><h4>Bo'lib to'lash</h4><div id="iplan" data-id="${esc(i.id)}">${itemPlan(i)}</div></div>
