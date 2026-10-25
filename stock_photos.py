@@ -1,43 +1,12 @@
-"""Billz'da rasmi yo'q tovarlar uchun Apple saytidagi namunaviy rasm.
-Model va rangni nomidan/xususiyatlaridan topadi. Bir nechta variant beradi:
-birinchisi ochilmasa, brauzer keyingisini oladi."""
+"""Billz'da rasmi yo'q tovarlar uchun Apple'ning rasmiy namunaviy rasmi.
+Hamma manzillar Apple Support "Identify your ..." sahifalaridan olingan (taxmin emas)."""
 import re
 
-BASE = "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/"
-Q = "?wid=904&hei=840&fmt=jpeg&qlt=90"
-
-# rang so'zlari -> Apple fayl nomidagi rang
-COLORS = [
-    (r"space\s*black|qora", "spaceblack"),
-    (r"space\s*gr[ae]y|kulrang|grey|gray|seriy", "space-gray"),
-    (r"midnight|to'q ko'k|tungi", "midnight"),
-    (r"starlight|oq-tilla|zvezd", "starlight"),
-    (r"sky\s*blue|havorang", "skyblue"),
-    (r"silver|kumush|oq\b|white", "silver"),
-    (r"gold|tilla|oltin|zoloto", "gold"),
-]
-
-# (nomga mos regex, fayl nomi shabloni, mavjud ranglar)
-MODELS = [
-    (r"air.*(m4)", "mba{size}-{c}-select-202503", ["skyblue", "silver", "starlight", "midnight"]),
-    (r"air.*15.*m3|air.*m3.*15", "mba15-{c}-select-202402", ["midnight", "starlight", "space-gray", "silver"]),
-    (r"air.*m3", "mba13-{c}-select-202402", ["midnight", "starlight", "space-gray", "silver"]),
-    (r"air.*15.*m2|air.*m2.*15", "mba15-{c}-select-202306", ["midnight", "starlight", "space-gray", "silver"]),
-    (r"air.*m2", "macbook-air-{c}-select-20220606", ["midnight", "starlight", "space-gray", "silver"]),
-    (r"air", "macbook-air-{c}-select-201810", ["space-gray", "silver", "gold"]),
-    (r"pro.*m4", "mbp{size}-{c}-select-202410", ["spaceblack", "silver"]),
-    (r"pro.*m3\s*(pro|max)", "mbp{size}-{c}-select-202310", ["spaceblack", "silver"]),
-    (r"pro.*m3", "mbp14-{c}-select-202310", ["spacegray", "silver"]),
-    (r"pro.*m2\s*(pro|max)", "mbp{size}-{c}-select-202301", ["spacegray", "silver"]),
-    (r"pro.*(m1\s*(pro|max))", "mbp{size}-{c}-select-202110", ["spacegray", "silver"]),
-    (r"pro.*m2", "mbp-{c}-select-202206", ["spacegray", "silver"]),
-    (r"pro.*m1", "mbp-{c}-select-202011", ["spacegray", "silver"]),
-    (r"pro", "mbp14-{c}-select-202110", ["spacegray", "silver"]),
-]
-
-
-# Apple qo'llab-quvvatlash sahifalaridagi rasmlar (support.apple.com: 108044, 108056, 108043, 109525)
 APPLE = "https://cdsassets.apple.com/live/7WUAS350/images/"
+MA = APPLE + "macbook-air/"
+MP = APPLE + "macbook-pro/"
+
+# iPhone / Watch / iPad / AirPods — support.apple.com 108044, 108056, 108043, 109525
 DEVICES = [
     (re.compile(r"iphone\s*18\s*pro\s*max"), APPLE + "iphone/iphone-18-pro-max-colors.png"),
     (re.compile(r"iphone\s*18\s*pro"), APPLE + "iphone/iphone-18-pro-colors.png"),
@@ -123,31 +92,65 @@ DEVICES = [
 ]
 
 
-def _color(text):
-    for rx, c in COLORS:
-        if re.search(rx, text):
-            return c
+
+def _size(t):
+    """Ekran o'lchami: 13/14/15/16. "16/512" kabi xotira yozuvlarini e'tiborsiz qoldiradi."""
+    m = re.search(r"\b(13|14|15|16)(?:[.,]\d)?\s*(?:\"|”|''|-?inch|dyuym|дюйм)", t)
+    if m:
+        return m.group(1)
+    m = re.search(r"\b(13[.,][36]|14[.,]2|15[.,][34]|16[.,]2)\b", t)
+    if m:
+        return m.group(1)[:2]
+    for m in re.finditer(r"(?<![/\d.,])\b(13|14|15|16)\b(?!\s*/|\s*(?:gb|tb|gen|core|ta)\b|[.,]\d)", t):
+        return m.group(1)
     return ""
 
 
+def _mac(t):
+    air = bool(re.search(r"\bair\b|\bmba\b", t))
+    m = re.search(r"\bm([1-5])(?:\s*(pro|max))?\b", t)
+    chip, tier = (m.group(1), m.group(2)) if m else ("", None)
+    size = _size(t)
+    if air:
+        big = size == "15"
+        if chip == "5": return MA + ("macbook-air-15in-m5-colors.png" if big else "macbook-air-13in-m5-colors.png")
+        if chip == "4": return MA + ("2025-macbook-air-15in-colors.png" if big else "2025-macbook-air-13in-colors.png")
+        if chip == "3": return MA + ("2024-macbook-air-15in-m3-colors.png" if big else "2024-macbook-air-13in-m3-colors.png")
+        if chip == "2": return MA + ("2023-macbook-air-15in-m2-colors.png" if big else "2022-macbook-air-m2-colors.png")
+        if chip == "1": return MA + "macbook-air-2020-late-device.jpg"
+        if "2020" in t: return MA + "macbook-air-2020-device.jpg"
+        if re.search(r"2018|2019", t): return MA + "macbook-air-2018-device.jpg"
+        return MA + "macbook-air-2020-late-device.jpg"
+    big = size == "16"
+    if chip == "5":
+        if tier: return MP + ("macbook-pro-16in-m5-pro-m5-max.png" if big else "macbook-pro-14in-m5-pro-m5-max.png")
+        return MP + "macbook-pro-14in-m5-colors.png"
+    if chip == "4":
+        if tier or big: return MP + ("macbook-pro-16in-2024-colors.png" if big else "macbook-pro-14in-2024-m4-pro-m4-max-colors.png")
+        return MP + "macbook-pro-14in-2024-m4-colors.png"
+    if chip == "3":
+        if tier or big: return MP + ("macbook-pro-16in-m3-pro-m3-max-nov-2023-silver-space-black.png" if big
+                                     else "macbook-pro-14in-m3-pro-m3-max-nov-2023-silver-space-black.png")
+        return MP + "macbook-pro-14in-m3-nov-2023-silver-space-gray.png"
+    if chip == "2":
+        if tier or size in ("14", "16"): return MP + ("macbook-pro-16in-2023.png" if big else "macbook-pro-14in-2023.png")
+        return MP + "macbook-pro-13-in-M2-2022.png"
+    if chip == "1":
+        if tier or size in ("14", "16"): return MP + ("macbook-pro-2021-16in.png" if big else "macbook-pro-2021-14in.png")
+        return MP + "macbook-pro-2020-late-13in-device.jpg"
+    if big: return MP + "macbook-pro-16in-2019.jpg"
+    if size == "15": return MP + "macbook-pro-2018-15in-device-2.jpg"
+    if "2020" in t: return MP + "macbook-pro-2020-13in-device-3.jpg"
+    return MP + "macbook-pro-2018-13in-device.jpg"
+
+
 def stock_photos(name, details):
-    text = (name + " " + " ".join(v for _, v in details)).lower()
-    if "macbook" not in text and not re.search(r"\b(mba|mbp)\b", text):
-        if re.search(r"ipad|airpods|watch|\baw\b", text) or re.search(r"iphone", text):
-            for rx, url in DEVICES:
-                if rx.search(text):
-                    return [url]
-        if not re.search(r"\b(air|pro)\b.*\bm[1-5]\b", text):
+    t = (name + " " + " ".join(v for _, v in details)).lower().replace("”", '"')
+    is_mac = "macbook" in t or re.search(r"\b(mba|mbp)\b", t)
+    if not is_mac:
+        for rx, url in DEVICES:
+            if rx.search(t):
+                return [url]
+        if not re.search(r"\b(air|pro)\b.*\bm[1-5]\b", t):
             return []
-    size = "16" if re.search(r"\b16\b|16[\"”']|16 ?inch|16 ?dyuym", name.lower()) else \
-        ("15" if re.search(r"\b15\b|15[\"”']", name.lower()) else "14" if "pro" in text else "13")
-    text = re.sub(r"\bmbp\b", "macbook pro", re.sub(r"\bmba\b", "macbook air", text))
-    want = _color(text)
-    for rx, tpl, colors in MODELS:
-        if re.search(rx, text):
-            pick = want.replace("space-gray", "spacegray") if "mbp" in tpl else want.replace("spacegray", "space-gray")
-            if pick == "spaceblack" and "spaceblack" not in colors:
-                pick = "spacegray"
-            order = ([pick] if pick in colors else []) + [c for c in colors if c != pick]
-            return [BASE + tpl.format(size=size, c=c) + Q for c in order[:3]]
-    return []
+    return [_mac(t)]

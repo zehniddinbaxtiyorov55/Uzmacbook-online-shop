@@ -243,6 +243,19 @@ async def index(_):
                             headers={"Cache-Control": "no-cache"})
 
 
+async def photos_info(_):
+    """Tekshiruv: har bir tovarga qaysi rasm qo'yilgani."""
+    rows = []
+    for i in await load():
+        src = "billz" if i["photos"] else ("apple" if i["stock"] else "yo'q")
+        url = (i["photos"] or i["stock"] or [""])[0]
+        rows.append({"nom": i["name"], "kategoriya": i["category"], "rasm": src,
+                     "fayl": url.rsplit("/", 1)[-1] if src == "apple" else url[:80]})
+    rows.sort(key=lambda r: (r["rasm"], r["kategoriya"], r["nom"]))
+    return web.json_response({"jami": len(rows), "tovarlar": rows},
+                             dumps=lambda o: json.dumps(o, ensure_ascii=False, indent=1))
+
+
 async def rate_info(_):
     rate, rdate = usd_rate()
     return web.json_response({"rate": rate, "date": rdate, "topilgan": rate_cache.get("diag")})
@@ -339,6 +352,7 @@ def make_app(bot, billz_products, num):
     app.router.add_get("/", index)
     app.router.add_get("/logo.png", logo)
     app.router.add_get("/api/rate", rate_info)
+    app.router.add_get("/api/photos", photos_info)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     return app
