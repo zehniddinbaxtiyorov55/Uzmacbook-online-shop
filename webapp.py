@@ -194,7 +194,7 @@ def to_item(p):
         "price": price, "promo": promo, "currency": cur,
         "qty": qty if stocks else None,
         "photos": photos_of(p),
-        "stock": stock_photos(name, details),
+        "stock": stock_photos(name, details, cats[-1] if cats else ""),
         "mac": is_mac(name, cats[-1] if cats else "", details),
         "details": details[:12],
     }

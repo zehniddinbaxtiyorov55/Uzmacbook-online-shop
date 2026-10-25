@@ -42,9 +42,9 @@ DEVICES = [
     (re.compile(r"iphone\s*11"), APPLE + "iphone/identify-iphone-11-colors.jpg"),
     (re.compile(r"iphone\s*se.*(3|2022)"), APPLE + "iphone/iphone-se-3rd-gen-colors.png"),
     (re.compile(r"iphone\s*se"), APPLE + "iphone/iphone-se/iphone-se-2nd-gen-colors.jpg"),
-    (re.compile(r"ultra\s*4"), APPLE + "apple-watch/apple-watch-ultra-4.png"),
-    (re.compile(r"ultra\s*3"), APPLE + "apple-watch/apple-watch-ultra-3-colors.png"),
-    (re.compile(r"ultra\s*2"), APPLE + "apple-watch/apple-watch-ultra-2-colors.png"),
+    (re.compile(r"(watch|\baw\b).*ultra\s*4\b(?!\d|\s*mm)"), APPLE + "apple-watch/apple-watch-ultra-4.png"),
+    (re.compile(r"(watch|\baw\b).*ultra\s*3\b(?!\d|\s*mm)"), APPLE + "apple-watch/apple-watch-ultra-3-colors.png"),
+    (re.compile(r"(watch|\baw\b).*ultra\s*2\b(?!\d|\s*mm)"), APPLE + "apple-watch/apple-watch-ultra-2-colors.png"),
     (re.compile(r"watch.*ultra|ultra.*watch|\baw\s*ultra"), APPLE + "apple-watch/fall-2022-apple-watch-ultra.png"),
     (re.compile(r"(watch|\baw)\s*(series\s*|s)?12\b"), APPLE + "apple-watch/apple-watch-series-12-aluminum-gps.png"),
     (re.compile(r"(watch|\baw)\s*(series\s*|s)?11\b"), APPLE + "apple-watch/apple-watch-series-11-aluminum-gps.png"),
@@ -55,6 +55,7 @@ DEVICES = [
     (re.compile(r"(watch|\baw)\s*(series\s*|s)?6\b"), APPLE + "apple-watch/apple-watch-series6-aluminum-gps-colors.png"),
     (re.compile(r"(watch|\baw)\s*(series\s*|s)?5\b"), APPLE + "apple-watch/series5-apple-watch-aluminum-gps.png"),
     (re.compile(r"(watch|\baw)\s*(series\s*|s)?4\b"), APPLE + "apple-watch/series4-apple-watch-aluminum-gps.png"),
+    (re.compile(r"(watch|\baw)\s*(series\s*|s)?3\b(?!\d|\s*mm)"), APPLE + "apple-watch/series4-apple-watch-aluminum-gps.png"),
     (re.compile(r"(watch|\baw)\s*se\s*3"), APPLE + "apple-watch/apple-watch-se-3.png"),
     (re.compile(r"(watch|\baw)\s*se\s*(2|2022)"), APPLE + "apple-watch/fall-2022-watch-series8-se-gps.png"),
     (re.compile(r"(watch|\baw)\s*se"), APPLE + "apple-watch/apple-watch-series6-000-aluminum-gps-colors.png"),
@@ -106,11 +107,17 @@ def _size(t):
     return ""
 
 
-def _mac(t):
-    air = bool(re.search(r"\bair\b|\bmba\b", t))
-    m = re.search(r"\bm([1-5])(?:\s*(pro|max))?\b", t)
+def _mac(t, n=""):
+    # Air yoki Pro — avval nomidan, bo'lmasa xususiyatlardan
+    if re.search(r"\bair\b|\bmba\b", n):
+        air = True
+    elif re.search(r"\bmbp\b|\bpro\b|\bmax\b", n):
+        air = False
+    else:
+        air = bool(re.search(r"\bair\b|\bmba\b", t))
+    m = re.search(r"\bm([1-5])(?:\s*(pro|max))?\b", n) or re.search(r"\bm([1-5])(?:\s*(pro|max))?\b", t)
     chip, tier = (m.group(1), m.group(2)) if m else ("", None)
-    size = _size(t)
+    size = _size(n) or _size(t)
     if air:
         big = size == "15"
         if chip == "5": return MA + ("macbook-air-15in-m5-colors.png" if big else "macbook-air-13in-m5-colors.png")
@@ -144,13 +151,22 @@ def _mac(t):
     return MP + "macbook-pro-2018-13in-device.jpg"
 
 
-def stock_photos(name, details):
-    t = (name + " " + " ".join(v for _, v in details)).lower().replace("”", '"')
-    is_mac = "macbook" in t or re.search(r"\b(mba|mbp)\b", t)
+NOT_APPLE = re.compile(r"galaxy|samsung|xiaomi|redmi|poco|honor|huawei|pixel|oneplus|meta\b|oakley|ray-?ban|quest|playstation|\bps[45]\b|sony|garmin|amazfit")
+ACCESSORY = re.compile(r"keyboard|klaviatura|pencil|qalam|chexol|case\b|plyonka|himoya|maxfiy|shaffof|\bmat\b|matoviy|zaryad|kabel|cable|adapter|"
+                       r"charger|\b\d{2,3}\s*w\b|mouse|sichqon|trackpad|stand|sumka|bag\b|hub\b")
+
+
+def stock_photos(name, details, category=""):
+    n = name.lower().replace("”", '"')
+    t = (n + " " + " ".join(v for _, v in details).lower()).replace("”", '"')
+    c = category.lower()
+    if NOT_APPLE.search(n) or ACCESSORY.search(n) or ACCESSORY.search(c):
+        return []
+    is_mac = "macbook" in t or "macbook" in c or re.search(r"\b(mba|mbp)\b", t)
     if not is_mac:
         for rx, url in DEVICES:
             if rx.search(t):
                 return [url]
         if not re.search(r"\b(air|pro)\b.*\bm[1-5]\b", t):
             return []
-    return [_mac(t)]
+    return [_mac(t, n)]
