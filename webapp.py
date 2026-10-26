@@ -38,6 +38,7 @@ def plan_calc(price, months):
     return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
+PHONES = {}  # Telegram user_id -> Telegram tasdiqlagan telefon raqam
 rate_cache = {"rate": None, "date": "", "src": "", "at": 0.0, "busy": False, "task": None, "diag": {}}
 CBU = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/%s"
 RATE_TTL = 3600                                            # kurs har soatda tekshiriladi
@@ -256,6 +257,17 @@ async def photos_info(_):
                              dumps=lambda o: json.dumps(o, ensure_ascii=False, indent=1))
 
 
+async def me(req):
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    user = check_init(body.get("initData"))
+    if not user:
+        return web.json_response({"ok": False}, status=401)
+    return web.json_response({"ok": True, "phone": PHONES.get(user.get("id"), "")})
+
+
 async def rate_info(_):
     rate, rdate = usd_rate()
     return web.json_response({"rate": rate, "date": rdate, "topilgan": rate_cache.get("diag")})
@@ -290,7 +302,20 @@ async def order(req):
         return web.json_response({"ok": False, "error": "auth"}, status=401)
     by_id = {i["id"]: i for i in await load()}
     chosen = [by_id[i] for i in (body.get("items") or [])[:20] if i in by_id]
-    phone = str(body.get("phone") or "")[:30]
+    uid = user.get("id")
+    phone = PHONES.get(uid)
+    if not phone and body.get("shared"):
+        # Telegram kontakt xabari botga biroz kechikib kelishi mumkin
+        for _ in range(16):
+            await asyncio.sleep(0.5)
+            phone = PHONES.get(uid)
+            if phone:
+                break
+    if phone:
+        phone += " (Telegram ✓)"
+    else:
+        phone = str(body.get("phone") or "")[:30]
+        phone = (phone + " (qo'lda yozilgan)") if phone else ""
     try:
         months = int(body.get("months") or 0)
     except (TypeError, ValueError):
@@ -355,6 +380,7 @@ def make_app(bot, billz_products, num):
     app.router.add_get("/api/photos", photos_info)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
+    app.router.add_post("/api/me", me)
     return app
 
 

@@ -149,6 +149,14 @@ html.dark .pv::before{background:rgba(255,255,255,.04)}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:23px;padding:4px;margin-bottom:14px}
 .seg button{border:0;border-radius:19px;padding:9px;background:none;font-size:13px;font-weight:600;color:var(--tx2)}
 .seg button.on{background:var(--card);color:var(--tx);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.phb{width:100%;margin-top:18px;border:0;border-radius:23px;padding:14px 18px;background:var(--soft);color:var(--tx);font-weight:600;font-size:15px;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.phb svg{width:20px;height:20px;color:var(--blue)}
+.pho{margin-top:18px;border:1px solid var(--line);border-radius:23px;padding:12px 18px;display:flex;align-items:center;gap:10px}
+.pho svg{flex:none;width:20px;height:20px;color:#1a8f3c}
+html.dark .pho svg{color:#30d158}
+.pho b{font-size:15px}
+.pho span{font-size:12px;color:var(--tx2);display:block}
 .tel{width:100%;border:1px solid var(--line);border-radius:23px;padding:13px 18px;background:var(--bg);color:var(--tx);font:inherit;outline:none;margin-top:18px}
 .tel:focus{border-color:var(--blue)}
 .note{color:var(--tx2);font-size:12px;margin-top:10px;text-align:center}
@@ -193,6 +201,8 @@ if (tg) {
 }
 
 let items = [], cat = "Hammasi", view = null, curId = null;
+let myPhone = "", phoneShared = false;
+const canContact = !!(inTg && tg.requestContact && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9"));
 let plan = {down: 50, min: 3, max: 8, pct: 6}, usdUzs = null, rateDate = "", itemM = 8, payM = 0;
 const cart = new Set();
 const $ = s => document.querySelector(s);
@@ -447,15 +457,38 @@ function openCart() {
     <div class="sum">
       <div class="sr big"><span style="color:var(--tx)">Jami · ${list.length} ta mahsulot</span><b>${totalStr(list)}</b></div>
       <div class="blk" style="margin-top:4px"><h4>To'lov turi</h4><div id="cplan">${cartPlan(list)}</div></div>
-      <input class="tel" id="tel" type="tel" inputmode="tel" placeholder="Telefon raqamingiz: +998 ..." autocomplete="tel" value="${esc(tel)}">
+      <div id="phoneBox">${phoneBlock(tel)}</div>
       <div class="note">Menejerimiz siz bilan bog'lanib, buyurtmani tasdiqlaydi.</div>
     </div>`, "cart");
   refreshMain();
 }
 
+function fmtPhone(p) {
+  const d = String(p).replace(/\D/g, "");
+  return d.length === 12 && d.startsWith("998") ? `+998 ${d.slice(3,5)} ${d.slice(5,8)} ${d.slice(8,10)} ${d.slice(10)}` : (d ? "+" + d : "");
+}
+function phoneBlock(tel) {
+  if (!canContact) return `<input class="tel" id="tel" type="tel" inputmode="tel" placeholder="Telefon raqamingiz: +998 ..." autocomplete="tel" value="${esc(tel || "")}">`;
+  if (phoneShared) return `<div class="pho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+    <div><b>${esc(fmtPhone(myPhone) || "Raqam yuborildi")}</b><span>Telegram akkauntingiz raqami</span></div></div>`;
+  return `<button class="phb" data-share><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Telegram raqamimni yuborish</button>
+    <div class="note" style="margin-top:8px">Raqam Telegram akkauntingizdan avtomatik olinadi</div>`;
+}
+function askContact(next) {
+  tg.requestContact((ok, res) => {
+    if (!ok) { tg.showAlert("Buyurtma berish uchun raqamingizni yuboring — menejerimiz shu raqamga bog'lanadi."); return; }
+    phoneShared = true;
+    const p = res && res.responseUnsafe && res.responseUnsafe.contact && res.responseUnsafe.contact.phone_number;
+    if (p) myPhone = p;
+    haptic("medium");
+    const box = $("#phoneBox"); if (box) box.innerHTML = phoneBlock();
+    if (next) next();
+  });
+}
 async function submit() {
-  const phone = ($("#tel")?.value || "").trim();
-  if (phone.replace(/\D/g, "").length < 9) {
+  if (canContact && !phoneShared) return askContact(submit);
+  const phone = canContact ? myPhone : ($("#tel")?.value || "").trim();
+  if (!canContact && phone.replace(/\D/g, "").length < 9) {
     const msg = "Iltimos, telefon raqamingizni yozing";
     inTg ? tg.showAlert(msg) : alert(msg); return;
   }
@@ -463,7 +496,7 @@ async function submit() {
   tg.MainButton.showProgress();
   try {
     const r = await fetch("api/order", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({initData: tg.initData, items: [...cart], phone, months: payM})});
+      body: JSON.stringify({initData: tg.initData, items: [...cart], phone, shared: phoneShared, months: payM})});
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     cart.clear(); payM = 0; closePage();
@@ -492,12 +525,15 @@ $("#page").addEventListener("click", e => {
   if (im) { itemM = +im.dataset.im; haptic("soft"); $("#iplan").innerHTML = itemPlan(byId($("#iplan").dataset.id)); return; }
   const pm = e.target.closest("[data-pm]");
   if (pm) { payM = +pm.dataset.pm; haptic("soft"); $("#cplan").innerHTML = cartPlan([...cart].map(byId).filter(Boolean)); return; }
+  if (e.target.closest("[data-share]")) return askContact();
   const rm = e.target.closest("[data-rm]");
   if (rm) { cart.delete(rm.dataset.rm); haptic(); render(); openCart(); }
 });
 if (inTg) tg.BackButton.onClick(closePage);
 
 skeleton();
+if (canContact) fetch("api/me", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({initData: tg.initData})})
+  .then(r => r.json()).then(d => { if (d.phone) { myPhone = d.phone; phoneShared = true; } }).catch(() => {});
 fetch("api/products").then(r => r.json()).then(d => {
   items = d.items || [];
   if (d.plan) { plan = d.plan; itemM = plan.max; $("#heroPill").textContent = `Bo'lib to'lash · ${plan.max} oygacha`; }

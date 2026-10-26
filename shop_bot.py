@@ -4,7 +4,7 @@ import asyncio, hashlib, logging, os, re
 import aiohttp
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 import webapp
@@ -123,6 +123,18 @@ async def on_kanal(m: Message, command: CommandObject):
         await m.answer("Tayyor! Kanalga joylandi va qadaldi.")
     except Exception as e:
         await m.answer("Xato: %s\nBot kanalda adminmi?" % e)
+
+
+@dp.message(F.contact)
+async def on_contact(m: Message):
+    """Mini App'dagi "Raqamni ulashish" tugmasidan kelgan kontakt — faqat o'z raqami qabul qilinadi."""
+    c = m.contact
+    if m.from_user and c.user_id == m.from_user.id:
+        digits = "".join(ch for ch in c.phone_number if ch.isdigit())
+        webapp.PHONES[m.from_user.id] = "+" + digits
+        log.info("BOT: telefon qabul qilindi: user %s", m.from_user.id)
+    else:
+        await m.answer("Iltimos, faqat o'zingizning raqamingizni yuboring.")
 
 
 @dp.message()
