@@ -1,9 +1,12 @@
 """Kunlik savdo hisoboti: Billz -> Telegram.
 
 Har kuni 22:00 da (Toshkent) REPORT_TO dagi odamlarga bugungi hisobot boradi:
-cheklar, dona, tushum, foyda, marja, nimalar qanchadan sotildi, har biridan foyda,
-kategoriyalar va oy boshidan jami.
+cheklar, dona, tushum, foyda, marja; har bir chek bo'yicha: qaysi tovar va uning
+xarakteristikalari, qanchaga sotilgani, foydasi, to'lov turlari (naqd, kimning kartasi,
+qarz, trade-in - Billz'dagi to'lov turi nomi bilan) va chekdagi izoh; kun bo'yicha
+to'lov turlari jami, kategoriyalar va oy boshidan jami. Mijoz ismi/telefoni yozilmaydi.
 Botga istalgan payt yozish mumkin: /hisobot, /hisobot kecha, /hisobot 25.10
+(/hisobot maydonlar - Billz maydon nomlarini ko'rsatadi, sozlash uchun)
 
 Render -> Environment (hammasi ixtiyoriy):
   REPORT_TO    - kimga: @username yoki Telegram ID, vergul bilan. Standart: @baxtiyorov_zz
@@ -26,11 +29,14 @@ except ValueError:
 SHOPS = [s.strip() for s in os.environ.get(
     "REPORT_SHOPS", "539ebeda-9f4f-4a63-82cd-48ae0413cd84").split(",") if s.strip()]
 KEEP_AWAKE = os.environ.get("KEEP_AWAKE", "1") != "0"
-MAX_ITEMS = 40
+MAX_ORDERS = 30     # xabarda ko'pi bilan nechta chek batafsil ko'rsatiladi
+MAX_SPECS = 8       # bitta tovarga nechta xarakteristika
 PURCHASES = "/v1/customer-purchases-table"
+SKIP_SPEC = ("seriya", "imei", "serial", "shtrix", "barcode")
 
 # Billz javobidagi maydonlar, birinchi topilgani ishlatiladi
-TOTAL_FIELDS = ("net_gross_sales", "gross_sales", "net_sales", "total_price", "total_sum", "sales_sum")
+TOTAL_FIELDS = ("sold_with_discount", "net_gross_sales", "gross_sales", "net_sales", "total_price",
+                "total_sum", "sales_sum")
 UNIT_FIELDS = ("sold_price", "sale_price", "retail_price", "price")
 SUPPLY_FIELDS = ("supply_price", "net_supply_price")
 PROFIT_FIELDS = ("net_profit", "gross_profit", "profit")
@@ -44,6 +50,7 @@ users = {}          # username (kichik harf) -> chat id, botga yozganlardan
 tasks = []
 sched = {"day": "", "done": False, "tries": 0, "next": 0.0}
 tip_sent = set()
+spec_cache = {}     # tovar -> (vaqt, xarakteristikalar)
 
 
 # ---------- Ulash ----------
@@ -224,7 +231,9 @@ def parse(rows):
         ret = min(num(p.get("returned_measurement_value")), sold)
         base = {"day": day, "time": created[11:16], "order": str(p.get("order_id") or ""),
                 "name": str(p.get("product_name") or "").strip() or "Nomsiz tovar",
-                "cat": _cat(p) or "Boshqa"}
+                "cat": _cat(p) or "Boshqa",
+                "pid": str(p.get("product_id") or ""), "sku": str(p.get("product_sku") or ""),
+                "spec": specs_of(p, ("product_custom_fields", "custom_fields"))}
         if ret > 0:
             lines.append(dict(base, kind="return", qty=ret))
         qty = sold - ret
@@ -240,7 +249,120 @@ def parse(rows):
         else:
             rev = 0.0
         lines.append(dict(base, kind="sale", qty=qty, rev=rev, profit=profit))
-    return {"lines": lines, "fields": f, "rows": len(rows)}
+    return {"lines": lines, "fields": f, "rows": len(rows), "sample": rows[0] if rows else {}}
+
+
+# ---------- Chek tafsilotlari: to'lovlar, izoh, xarakteristikalar ----------
+def specs_of(p, keys=("custom_fields",)):
+    """Tovar xarakteristikalari ("Sikl: 187" kabi), seriya/IMEI siz. Topilmasa []."""
+    out = []
+    for key in keys:
+        for f in p.get(key) or []:
+            if not isinstance(f, dict):
+                continue
+            name = str(f.get("custom_field_name") or f.get("name") or "").strip()
+            val = f.get("custom_field_value", f.get("value"))
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val if v not in (None, ""))
+            if val in (None, "") or not name or any(s in name.lower() for s in SKIP_SPEC):
+                continue
+            out.append("%s: %s" % (name, str(val).strip()))
+    for a in p.get("product_attributes") or []:
+        if isinstance(a, dict) and a.get("attribute_value"):
+            out.append("%s: %s" % (a.get("attribute_name") or "", a["attribute_value"]))
+    return list(dict.fromkeys(out))[:MAX_SPECS]
+
+
+def parse_order(body):
+    """GET /v2/order/:id javobi -> to'lovlar, qarz, izoh, tovarlar."""
+    num = ctx["num"]
+    if "order_detail" not in body and isinstance(body.get("data"), dict):
+        body = body["data"]
+    d = body.get("order_detail") or {}
+    pays = []
+    for p in d.get("order_payments") or []:
+        t = p.get("company_payment_type") or {}
+        name = str(t.get("name") or p.get("payment_type_name") or p.get("name") or "To'lov").strip()
+        amount = num(p.get("paid_amount")) - num(p.get("returned_amount"))
+        if abs(amount) > 0.004:
+            pays.append([name, amount])
+    for key, label in (("loyalty_payment", "Bonus/cashback"), ("gift_card_payment", "Sertifikat")):
+        v = num(d.get(key))
+        if v > 0:
+            pays.append([label, v])
+    items = []
+    for it in d.get("order_items") or []:
+        pr = it.get("product") or {}
+        items.append({"id": str(pr.get("id") or ""), "sku": str(pr.get("sku") or ""),
+                      "name": str(pr.get("name") or "").strip()})
+    comment = re.sub(r"[ \t]+", " ", str(d.get("comment") or "")).strip()[:400]
+    return {"number": str(body.get("order_number") or ""), "comment": comment,
+            "payments": pays, "debt": max(0.0, num(body.get("debt"))), "items": items,
+            "keys": sorted(d.keys())}
+
+
+def _pick_product(products, ref):
+    for key, field in (("id", "id"), ("sku", "sku")):
+        if ref.get(key):
+            for p in products:
+                if str(p.get(field) or "") == ref[key]:
+                    return p
+    for p in products:
+        if (p.get("name") or "").strip().lower() == ref["name"].lower():
+            return p
+    return products[0] if len(products) == 1 else None
+
+
+async def fetch_details(lines, day):
+    """Kun cheklari uchun Billz'dan to'lovlar, izohlar va xarakteristikalar.
+    Xato bo'lsa bo'sh qaytaradi: hisobot baribir yuboriladi."""
+    order_ids = list(dict.fromkeys(l["order"] for l in lines
+                                   if l["kind"] == "sale" and l["day"] == day and l["order"]))
+    orders, specs = {}, {}
+    sem = asyncio.Semaphore(5)
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as s:
+        async def one_order(oid):
+            async with sem:
+                try:
+                    orders[oid] = parse_order(await _get(s, "/v2/order/" + oid, None))
+                except Exception as e:
+                    log.warning("BOT: chek %s tafsiloti olinmadi: %r", oid, e)
+        await asyncio.gather(*(one_order(o) for o in order_ids))
+
+        # xarakteristikasi yo'q tovarlar: chekdagi tovar ID/SKU bo'yicha Billz'dan qidiriladi
+        refs, line_key = {}, {}
+        for l in lines:
+            if l["kind"] != "sale" or l["day"] != day or l["spec"]:
+                continue
+            ref = {"id": l["pid"], "sku": l["sku"], "name": l["name"]}
+            for it in (orders.get(l["order"]) or {}).get("items", []):
+                if it["name"].lower() == l["name"].lower() or (l["pid"] and it["id"] == l["pid"]):
+                    ref = {"id": it["id"] or l["pid"], "sku": it["sku"] or l["sku"], "name": l["name"]}
+                    break
+            key = ref["id"] or ref["sku"] or l["name"].lower()
+            refs[key] = ref
+            line_key[(l["order"], l["name"])] = key
+
+        found_specs = {}
+
+        async def one_spec(key, ref):
+            hit = spec_cache.get(key)
+            if hit and time.time() - hit[0] < 6 * 3600:
+                found_specs[key] = hit[1]
+                return
+            async with sem:
+                try:
+                    body = await _get(s, "/v2/products", {"search": ref["sku"] or ref["name"], "limit": 20,
+                                                          "include_empty_stocks": "true"})
+                    p = _pick_product(body.get("products") or [], ref)
+                    found_specs[key] = specs_of(p) if p else []
+                    spec_cache[key] = (time.time(), found_specs[key])
+                except Exception as e:
+                    log.warning("BOT: %s xarakteristikasi olinmadi: %r", ref["name"], e)
+        await asyncio.gather(*(one_spec(k, r) for k, r in refs.items()))
+        for lk, key in line_key.items():
+            specs[lk] = found_specs.get(key) or []
+    return {"orders": orders, "specs": specs, "asked": len(order_ids)}
 
 
 # ---------- Hisoblash va matn ----------
@@ -296,7 +418,41 @@ def weekday(day):
     return WEEKDAYS[datetime.date.fromisoformat(day).weekday()]
 
 
-def build_text(parsed, day, live):
+def order_blocks(lines, day, details):
+    """Har bir chek uchun matn bloki va kun bo'yicha to'lov turlari jami."""
+    orders, specs = details.get("orders", {}), details.get("specs", {})
+    groups = {}
+    for i, l in enumerate(lines):
+        if l["kind"] == "sale" and l["day"] == day:
+            groups.setdefault(l["order"] or "#%s" % i, []).append(l)
+    keys = sorted(groups, key=lambda k: min(x["time"] for x in groups[k]))
+    blocks, totals = [], {}
+    for n, key in enumerate(keys, 1):
+        g = sorted(groups[key], key=lambda x: -x["rev"])
+        o = orders.get(key) or {}
+        head = "%s) %s" % (n, g[0]["time"]) + (" · chek %s" % o["number"] if o.get("number") else "")
+        rows = [head]
+        for l in g:
+            rows.append("• %s%s — %s, %s" % (l["name"], " ×" + qty_str(l["qty"]) if l["qty"] != 1 else "",
+                                             money(l["rev"]), profit_word(l["profit"])))
+            spec = l["spec"] or specs.get((l["order"], l["name"])) or []
+            if spec:
+                rows.append("  " + " · ".join(spec))
+        pays = [[name, amt] for name, amt in o.get("payments", [])]
+        if o.get("debt"):
+            pays.append(["qarz (bo'lib to'lash)", o["debt"]])
+        if pays:
+            rows.append("💳 " + " + ".join("%s %s" % (money(a), name) for name, a in pays))
+            for name, a in pays:
+                totals[name] = totals.get(name, 0.0) + a
+        if o.get("comment"):
+            rows.append("📝 " + o["comment"])
+        blocks.append("\n".join(rows))
+    return blocks, totals
+
+
+def build_text(parsed, day, live, details=None):
+    details = details or {}
     s = summary(parsed["lines"], day, day)
     out = ["📊 Kunlik hisobot: %s, %s" % (dots(day), weekday(day))]
     if live:
@@ -312,15 +468,23 @@ def build_text(parsed, day, live):
         out.append("💰 Foyda: " + money(s["profit"]) + margin(s["profit"], s["rev"]))
         if s["ret"]:
             out.append("↩️ Qaytarilgan: %s dona" % qty_str(s["ret"]))
+        blocks, totals = order_blocks(parsed["lines"], day, details)
         out.append("")
-        out.append("📦 Nimalar sotildi:")
-        items = sorted(s["items"].values(), key=lambda x: -x["rev"])
-        for i, it in enumerate(items[:MAX_ITEMS], 1):
-            out.append("%s. %s" % (i, it["name"]))
-            out.append("   %s dona × %s = %s, %s" % (qty_str(it["qty"]), money(it["rev"] / it["qty"]),
-                                                 money(it["rev"]), profit_word(it["profit"])))
-        if len(items) > MAX_ITEMS:
-            out.append("... yana %s xil tovar" % (len(items) - MAX_ITEMS))
+        out.append("🧾 Sotuvlar:")
+        for b in blocks[:MAX_ORDERS]:
+            out.append("")
+            out.append(b)
+        if len(blocks) > MAX_ORDERS:
+            out.append("")
+            out.append("... yana %s ta chek" % (len(blocks) - MAX_ORDERS))
+        if details.get("asked") and not details.get("orders"):
+            out.append("")
+            out.append("(to'lov va izohlarni Billz'dan olib bo'lmadi)")
+        if totals:
+            out.append("")
+            out.append("💳 Bugungi to'lovlar:")
+            for name, a in sorted(totals.items(), key=lambda x: -x[1]):
+                out.append("%s: %s" % (name[:1].upper() + name[1:], money(a)))
         cats = sorted(s["cats"].values(), key=lambda x: -x["rev"])
         if len(cats) > 1:
             out.append("")
@@ -381,13 +545,21 @@ def parse_day(arg):
 async def send_daily(day):
     ids, missing = await recipients()
     parsed = parse(await fetch(month_start(day), day))  # Billz xato bersa shu yerda to'xtaydi
-    text = build_text(parsed, day, False)
+    text = build_text(parsed, day, False, await safe_details(parsed, day))
     for cid in ids:
         await send(cid, text)
     if missing:
         await notify("⚠️ Kunlik hisobot %s ga yuborilmadi: u bu botga /start bosmagan "
                      "yoki uning ID sini bilmayman. U botga /hisobot deb yozsin." % ", ".join(missing))
     log.info("BOT: kunlik hisobot yuborildi: %s ta odamga, sotuv qatorlari: %s", len(ids), parsed["rows"])
+
+
+async def safe_details(parsed, day):
+    try:
+        return await fetch_details(parsed["lines"], day)
+    except Exception:
+        log.exception("BOT: chek tafsilotlari xatosi")
+        return {"asked": 1}
 
 
 async def tick(now=None, clock=time.time):
@@ -426,6 +598,9 @@ async def on_command(m, args):
     admin = ctx.get("admin")
     if m.chat.id not in ids and str(m.chat.id) != admin:
         return False
+    if (args or "").strip().lower() in ("maydonlar", "debug"):
+        await send(m.chat.id, await fields_text())
+        return True
     day = parse_day(args)
     if not day:
         await send(m.chat.id, "Masalan:\n/hisobot - bugungi\n/hisobot kecha - kechagi\n/hisobot 25.10 - shu kungi")
@@ -436,7 +611,7 @@ async def on_command(m, args):
         log.exception("BOT: /hisobot uchun Billz xatosi")
         await send(m.chat.id, "⚠️ Billz'dan ma'lumot olib bo'lmadi, birozdan keyin qayta yozing.")
         return True
-    await send(m.chat.id, build_text(parsed, day, day == today()))
+    await send(m.chat.id, build_text(parsed, day, day == today(), await safe_details(parsed, day)))
     # @username orqali topilgan bo'lsa: server qayta yonganda ham ishlashi uchun ID ni yozib qo'yish maslahati
     numeric = set(re.findall(r"-?\d+", REPORT_TO))
     if str(m.chat.id) not in numeric and str(m.chat.id) != admin and m.chat.id not in tip_sent:
@@ -444,3 +619,33 @@ async def on_command(m, args):
         await send(m.chat.id, "Kunlik hisobot har kuni %s:00 da shu yerga keladi. Doim ishonchli kelishi uchun "
                               "Render → Environment ga REPORT_TO = %s deb yozib qo'ying." % (HOUR, m.chat.id))
     return True
+
+
+async def fields_text():
+    """Sozlash uchun: Billz qaytarayotgan maydon nomlari (qiymatlarsiz, mijoz ma'lumotisiz)."""
+    t = today()
+    start = (datetime.date.fromisoformat(t) - datetime.timedelta(days=30)).isoformat()
+    try:
+        parsed = parse(await fetch(start, t))
+    except Exception as e:
+        return "Billz xatosi: %s" % str(e)[:200]
+    out = ["Oxirgi 30 kun: %s ta qator" % parsed["rows"],
+           "Hisobda: tushum=%s, foyda=%s" % (parsed["fields"]["total"] or parsed["fields"]["unit"]
+                                              or parsed["fields"]["supply"] or "TOPILMADI",
+                                              parsed["fields"]["profit"] or "TOPILMADI"),
+           "", "Sotuv qatori maydonlari:", ", ".join(sorted(parsed["sample"].keys()))]
+    sales = [l for l in parsed["lines"] if l["kind"] == "sale"]
+    if sales:
+        last = sales[-1]
+        try:
+            d = await fetch_details([last], last["day"])
+            o = d["orders"].get(last["order"])
+            if o:
+                out += ["", "Chek maydonlari:", ", ".join(o["keys"]),
+                        "To'lov turlari: " + (", ".join(n for n, _ in o["payments"]) or "yo'q"),
+                        "Izoh bormi: " + ("ha" if o["comment"] else "yo'q")]
+            sp = last["spec"] or d["specs"].get((last["order"], last["name"])) or []
+            out += ["", "Xarakteristika nomlari: " + (", ".join(x.split(":")[0] for x in sp) or "topilmadi")]
+        except Exception as e:
+            out.append("Chek xatosi: %s" % str(e)[:200])
+    return "\n".join(out)
