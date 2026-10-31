@@ -1,4 +1,4 @@
-"""Do'kon boti: faqat Mini App (Billz tovarlari), /start, /id, /kanal.
+"""Do'kon boti: Mini App (Billz tovarlari), /start, /id, /kanal, /hisobot (kunlik savdo hisoboti).
 Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
 import asyncio, hashlib, logging, os, re
 import aiohttp
@@ -7,6 +7,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+import report
 import webapp
 
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ BILLZ_PLATFORM = os.environ.get(
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
+dp.message.outer_middleware(report.remember_mw)  # hisobot @username orqali topilishi uchun
 billz = {"token": ""}
 
 
@@ -137,6 +139,13 @@ async def on_contact(m: Message):
         await m.answer("Iltimos, faqat o'zingizning raqamingizni yuboring.")
 
 
+@dp.message(Command("hisobot"))
+async def on_hisobot(m: Message, command: CommandObject):
+    """Kunlik savdo hisoboti (report.py). Faqat REPORT_TO dagilar va ADMIN uchun."""
+    if not await report.on_command(m, command.args or ""):
+        await on_any(m)
+
+
 @dp.message()
 async def on_any(m: Message):
     await m.answer("Do'konni ochish uchun pastdagi tugmani bosing 👇", reply_markup=shop_kb())
@@ -144,6 +153,10 @@ async def on_any(m: Message):
 
 async def main():
     app = webapp.make_app(bot, billz_products, num)
+    try:
+        report.setup(app, bot, billz_login, billz, BILLZ_URL, BILLZ_PLATFORM, num, webapp.URL, webapp.ADMIN)
+    except Exception:
+        log.exception("BOT: kunlik hisobotni ulab bo'lmadi")
     secret = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32]
     if webapp.URL:
         # Webhook: Telegram xabari kelganda server o'zi uyg'onadi (Render bepul tarifi uchun)
@@ -155,6 +168,10 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", port).start()
     log.info("BOT: server port %s da ishga tushdi", port)
     await webapp.set_menu(bot)
+    try:
+        report.start()  # har kuni 22:00 hisobot + server uxlab qolmasligi
+    except Exception:
+        log.exception("BOT: kunlik hisobot jadvalini ishga tushirib bo'lmadi")
     if webapp.URL:
         await bot.set_webhook(webapp.URL + "tg/" + secret, secret_token=secret,
                               allowed_updates=dp.resolve_used_update_types())
