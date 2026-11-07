@@ -64,8 +64,14 @@ WARRANTY_TEXT = (
 # 24/7 servis matnini Render > Environment > SERVICE_TEXT orqali qo'yish mumkin
 SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
     "\U0001F527 24/7 Servis\n\n"
-    "To'liq ma'lumot tez orada shu yerda bo'ladi. "
-    "Hozircha servis bo'yicha ✍ Savollar va takliflar orqali menejerga yozing.")
+    "Bizdan MacBook olgan bo'lsangiz, servis (ta'mirlash) xarajatlarini do'kon "
+    "o'z zimmasiga oladi. Qoplanadigan summa MacBook narxiga bog'liq:\n\n"
+    "\U0001F4BB 600$ gacha — 600 000 so'mgacha\n"
+    "\U0001F4BB 601–1000$ — 1 000 000 so'mgacha\n"
+    "\U0001F4BB 1001–1500$ — 1 500 000 so'mgacha\n"
+    "\U0001F4BB 1500$ dan yuqori — 1 800 000 so'mgacha\n\n"
+    "Muammo chiqsa, kunning istalgan vaqtida ✍ Savollar va takliflar orqali "
+    "yozing — yordam beramiz.")
 
 INFO = {"install": INSTALL_TEXT, "warranty": WARRANTY_TEXT, "service": SERVICE_TEXT}
 
