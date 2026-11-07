@@ -96,7 +96,8 @@ SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
     "\U0001F4BB 1500$ dan yuqori — 1 800 000 so'mgacha\n\n"
     "✅ Nosozlik kimning aybi bilan chiqqanidan qat'i nazar qoplanadi — "
     "hatto o'zingizning aybingiz bilan bo'lsa ham.\n"
-    "☝ Qoplash bir marta amalga oshiriladi.\n\n"
+    "☝ Qoplash bir marta amalga oshiriladi.\n"
+    "\U0001F3EA Ta'mir faqat do'kon orqali qilinadi.\n\n"
     "Muammo chiqsa, kunning istalgan vaqtida ✍ Savollar va takliflar orqali "
     "yozing — yordam beramiz.")
 
