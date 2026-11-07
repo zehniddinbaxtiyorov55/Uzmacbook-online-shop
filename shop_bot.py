@@ -55,11 +55,35 @@ INSTALL_TEXT = (
     "Har bir muddat uchun aniq oylik to'lovni \U0001F6CD Online do'kondan ko'rishingiz mumkin.")
 
 WARRANTY_TEXT = (
-    "\U0001F6E1 Garantiya va savdo kelishuvi\n\n"
-    "• Kafolat muddati — 3 oy.\n"
-    "• Agar 3 kun ichida mahsulotda yoki uning ishida muammo chiqsa, "
-    "pulingiz to'liq (tiyinigacha) qaytariladi.\n\n"
-    "Qo'shimcha savollar bo'lsa, ✍ Savollar va takliflar orqali menejerga yozing.")
+    "\U0001F6E1 Kafolat va savdo shartlari\n\n"
+    "✅ Halol savdo\n"
+    "Sotuvchi Mac'ning barcha ma'lum kamchiliklarini oldindan aytadi. "
+    "Mac'ni joyida tekshirib qabul qilasiz.\n\n"
+    "\U0001F6E0 Bepul kafolat — 3 oy\n"
+    "Xariddan keyin 3 oy ichida sizning aybingizsiz apparat nuqsoni chiqsa, do'kon bepul "
+    "ta'mirlaydi. Ta'mirlab bo'lmasa yoki ta'mir narxi Mac narxining 50% idan oshsa — "
+    "Mac almashtirib beriladi.\n\n"
+    "\U0001F510 MDM / iCloud kafolati\n"
+    "MDM bilan sotilgan Mac qulflanib qolsa, do'kon uni bepul ochib beradi. "
+    "Ocha olmasa — Mac almashtirib beriladi.\n\n"
+    "\U0001F504 Trade-in\n"
+    "Mac'ingizni boshqasiga almashtirmoqchi bo'lsangiz, do'kon uni bozor narxidan "
+    "qimmatroq baholab oladi.\n\n"
+    "⚠️ Kafolatga kirmaydi\n"
+    "• tushib ketish, urilish, suyuqlik tegishi va xaridor yetkazgan boshqa zarar\n"
+    "• do'kon muhri buzilgan yoki Mac boshqa ustada ochilgan bo'lsa — kafolat bekor bo'ladi\n"
+    "• dasturiy muammolar, o'zingiz qo'ygan parol yoki iCloud bloki\n"
+    "• batareyaning eskirishi (foiz tushishi, sikl ko'payishi, \"Service\" yozuvi)\n\n"
+    "\U0001F4CB Kafolatdan foydalanish\n"
+    "Kafolat qog'ozi bilan keling. Do'kon Mac'ni 3 ish kuni ichida tekshiradi, "
+    "ta'mir 14 kungacha davom etadi.\n\n"
+    "\U0001F4E6 Buyurtma (zakaz)\n"
+    "• Oldindan to'lov: 900$ gacha — 50$, 900$ dan yuqori — narxning 50%. "
+    "100% oldindan to'lasangiz — chegirma.\n"
+    "• Yetkazish: 5–10 kun. 15 kun ichida kelmasa yoki tavsifga mos kelmasa — "
+    "oldindan to'lov to'liq qaytariladi.\n"
+    "• Tovar tavsifga mos kelib, olishdan bosh tortsangiz — oldindan to'lov qaytarilmaydi.\n\n"
+    "Kafolat tugagandan keyingi yordam: \U0001F527 24/7 Servis.")
 
 # 24/7 servis matnini Render > Environment > SERVICE_TEXT orqali qo'yish mumkin
 SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
