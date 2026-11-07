@@ -79,6 +79,72 @@ SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
 INFO = {"install": INSTALL_TEXT, "warranty": WARRANTY_TEXT, "service": SERVICE_TEXT}
 
 cashback_pending = set()  # cashback uchun raqam kutilayotgan user_id lar
+cashback_info = {}        # user_id -> oxirgi balans ma'lumoti ("Nega cashback yo'q?" uchun)
+
+CASHBACK_HOW = (
+    "\U0001F4B0 Cashback qanday ishlaydi?\n\n"
+    "1️⃣ Bizdan MacBook olganingizda sizga shaxsiy promokod beriladi.\n"
+    "2️⃣ Do'stingiz shu promokod bilan MacBook olsa, ikkalangizga ham cashback yoziladi.\n"
+    "3️⃣ Promokod 3 oy amal qiladi va 2 ta do'st uchun ishlaydi.\n"
+    "4️⃣ To'plangan cashbackni keyingi xaridingizda ishlatasiz.\n\n"
+    "Hisobingizni ko'rish uchun pastdagi tugma orqali raqamingizni yuboring \U0001F447")
+
+NOT_BOUGHT = (
+    "Bu raqam bo'yicha xarid topilmadi — demak siz hali bizdan MacBook olmagansiz, "
+    "shuning uchun cashback hisobingiz yo'q.\n\n"
+    "Bizdan xarid qilganingizdan keyin shaxsiy promokod olasiz va cashback to'plashni "
+    "boshlaysiz. \U0001F6CD Online do'kondan modellarni ko'rib chiqing.\n\n"
+    "Xarid qilgan bo'lsangiz-u, bu xabar chiqqan bo'lsa, xaridda boshqa raqam yozilgan "
+    "bo'lishi mumkin — ✍ Savollar va takliflar orqali yozing.")
+
+
+def parse_cashback(text):
+    """Apps Script javob matnidan kerakli ma'lumotlarni ajratadi."""
+    t = text or ""
+    if "topilmadi" in t:
+        return {"found": False}
+
+    def money(rx):
+        mm = re.search(rx, t)
+        return float(mm.group(1)) if mm else 0.0
+    friends = [int(x) for x in re.findall(r"do'stlar:\s*(\d+)", t)]
+    return {
+        "found": True,
+        "left": money(r"Hisobingizdagi cashback:\s*\$([\d.]+)"),
+        "used": money(r"ishlatilgan:\s*\$([\d.]+)"),
+        "codes": re.findall(r"Promokod:\s*(\S+)", t),
+        "statuses": [s.strip() for s in re.findall(r"Holati:\s*([^\n(]+)", t)],
+        "friends": sum(friends),
+    }
+
+
+def why_no_cashback(info):
+    lines = ["❓ Nega cashback yo'q?\n",
+             "Cashback o'zingizning xaridingiz uchun berilmaydi. U faqat do'stingiz "
+             "sizning promokodingiz bilan MacBook olganda yoziladi."]
+    codes = info.get("codes") or []
+    active = any(s.lower().startswith("faol") for s in info.get("statuses") or [])
+    code = codes[0] if codes else ""
+    if info.get("used", 0) > 0:
+        lines.append("• Avval yozilgan cashbackingiz ($%s) keyingi xaridingizda ishlatilgan."
+                     % ("%g" % info["used"]))
+    if info.get("friends", 0) == 0:
+        if code and active:
+            lines.append("• Hozircha promokodingiz (%s) bilan hech kim xarid qilmagan. "
+                         "Uni do'stlaringizga yuboring." % code)
+        elif code:
+            lines.append("• Promokodingiz (%s) muddati tugagan yoki faol emas." % code)
+        else:
+            lines.append("• Promokodingiz hali berilmagan.")
+    else:
+        lines.append("• Do'stingiz yaqinda xarid qilgan bo'lsa, cashback hisobga biroz "
+                     "kechroq tushishi mumkin.")
+    if not active and info.get("friends", 0) >= 2:
+        lines.append("• Promokod 2 ta do'st uchun ishlatib bo'lingan.")
+    lines.append("\n\U0001F4A1 Muhim: do'stingiz xarid paytida promokodni sotuvchiga aytishi shart, "
+                 "aks holda cashback yozilmaydi.")
+    lines.append("Savol bo'lsa: ✍ Savollar va takliflar.")
+    return "\n".join(lines)
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
@@ -218,9 +284,18 @@ async def on_cash(c: CallbackQuery):
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📱 Raqamni yuborish", request_contact=True)]],
         resize_keyboard=True, one_time_keyboard=True)
-    await c.message.answer(
-        "💰 Cashback hisobingizni ko'rish uchun telefon raqamingizni yuboring 👇\n"
-        "(faqat o'zingizning raqamingizni)", reply_markup=kb)
+    await c.message.answer(CASHBACK_HOW, reply_markup=kb)
+    await c.answer()
+
+
+@dp.callback_query(F.data == "cash:why")
+async def on_cash_why(c: CallbackQuery):
+    info = cashback_info.get(c.from_user.id)
+    if not info:
+        await c.message.answer("Avval 💰 Cashbackim orqali raqamingizni yuboring.",
+                               reply_markup=main_menu())
+    else:
+        await c.message.answer(why_no_cashback(info), reply_markup=main_menu())
     await c.answer()
 
 
@@ -266,10 +341,26 @@ async def on_contact(m: Message):
         cashback_pending.discard(m.from_user.id)
         text = await fetch_cashback(phone)
         if not text:
-            text = ("Hozircha cashback xizmatiga ulana olmadim. "
-                    "Birozdan keyin qayta urinib ko'ring yoki ✍️ Savollar va takliflar orqali yozing.")
+            await m.answer("Hozircha cashback xizmatiga ulana olmadim. Birozdan keyin qayta "
+                           "urinib ko'ring yoki ✍️ Savollar va takliflar orqali yozing.",
+                           reply_markup=ReplyKeyboardRemove())
+            await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu())
+            return
+        info = parse_cashback(text)
+        if not info["found"]:
+            await m.answer(NOT_BOUGHT, reply_markup=ReplyKeyboardRemove())
+            await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu())
+            return
+        cashback_info[m.from_user.id] = info
         await m.answer(text, reply_markup=ReplyKeyboardRemove())
-        await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu())
+        kb = main_menu()
+        if info["left"] <= 0:
+            kb.inline_keyboard.insert(0, [InlineKeyboardButton(
+                text="❓ Nega cashback yo'q?", callback_data="cash:why")])
+            await m.answer("Hisobingizda hozircha cashback yo'q. Sababini bilish uchun "
+                           "pastdagi tugmani bosing 👇", reply_markup=kb)
+        else:
+            await m.answer("Yana nimadir kerakmi?", reply_markup=kb)
 
 
 @dp.message(Command("hisobot"))
