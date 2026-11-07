@@ -90,12 +90,17 @@ CASHBACK_HOW = (
     "Hisobingizni ko'rish uchun pastdagi tugma orqali raqamingizni yuboring \U0001F447")
 
 NOT_BOUGHT = (
-    "Bu raqam bo'yicha xarid topilmadi — demak siz hali bizdan MacBook olmagansiz, "
-    "shuning uchun cashback hisobingiz yo'q.\n\n"
-    "Bizdan xarid qilganingizdan keyin shaxsiy promokod olasiz va cashback to'plashni "
-    "boshlaysiz. \U0001F6CD Online do'kondan modellarni ko'rib chiqing.\n\n"
-    "Xarid qilgan bo'lsangiz-u, bu xabar chiqqan bo'lsa, xaridda boshqa raqam yozilgan "
-    "bo'lishi mumkin — ✍ Savollar va takliflar orqali yozing.")
+    "Siz hali bizdan MacBook olmagansiz — demak eng foydali qismi hali oldinda \U0001F642\n\n"
+    "\U0001F381 Bizdan MacBook olsangiz:\n"
+    "• shaxsiy promokodingiz bo'ladi;\n"
+    "• do'stingiz shu kod bilan MacBook olsa, sizga ham, unga ham cashback yoziladi "
+    "(2 ta do'stgacha);\n"
+    "• to'plangan cashback bilan keyingi xaridingiz arzonroq tushadi.\n\n"
+    "Ya'ni MacBookni bir marta olasiz, foydasi esa keyin ham kelaveradi.\n\n"
+    "\U0001F6E1 3 oy kafolat, \U0001F527 24/7 servis va \U0001F4B3 bo'lib to'lash ham bor.\n\n"
+    "\U0001F447 O'zingizga mos MacBookni \U0001F6CD Online do'kondan tanlang.\n\n"
+    "(Agar bizdan xarid qilgan bo'lsangiz, xaridda boshqa raqam yozilgan bo'lishi mumkin — "
+    "✍ Savollar va takliflar orqali yozing.)")
 
 
 def parse_cashback(text):
@@ -348,8 +353,8 @@ async def on_contact(m: Message):
             return
         info = parse_cashback(text)
         if not info["found"]:
-            await m.answer(NOT_BOUGHT, reply_markup=ReplyKeyboardRemove())
-            await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu())
+            await m.answer("Tekshirdim 👌", reply_markup=ReplyKeyboardRemove())
+            await m.answer(NOT_BOUGHT, reply_markup=main_menu())
             return
         cashback_info[m.from_user.id] = info
         await m.answer(text, reply_markup=ReplyKeyboardRemove())
