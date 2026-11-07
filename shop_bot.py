@@ -42,11 +42,16 @@ WELCOME = (
 
 INSTALL_TEXT = (
     "\U0001F4B3 Muddatli to'lov shartlari\n\n"
+    "Muddatli to'lov hozircha faqat MacBooklar uchun.\n\n"
     "• Mahsulot narxining 50% i oldindan to'lanadi.\n"
-    "• Qolgan summa 3 oydan 8 oygacha bo'lib to'lanadi.\n"
-    "• Har oyga qolgan summadan 6% ustama qo'shiladi.\n"
-    "• Masalan: $200 lik MacBook — $100 oldindan, qolgan $100 esa 3 oyda jami ~$118.\n"
-    "• Hozircha muddatli to'lov faqat MacBooklar uchun (boshqa mahsulotlar — tez orada).\n\n"
+    "• Qolgan summa 3 oydan 8 oygacha teng bo'lib to'lanadi.\n"
+    "• Har bir oy uchun mahsulot narxining 6% i ustama qo'shiladi.\n\n"
+    "Misol — $2000 lik MacBook, 3 oyga:\n"
+    "• Oldindan (50%): $1000\n"
+    "• Ustama: har oy 6% × 3 oy = narxning 18% i = $360\n"
+    "• Bo'lib to'lanadigan qism: $1000 + $360 = $1360\n"
+    "• Oyiga: $1360 ÷ 3 ≈ $453\n"
+    "• Umumiy: $2360\n\n"
     "Har bir muddat uchun aniq oylik to'lovni \U0001F6CD Online do'kondan ko'rishingiz mumkin.")
 
 WARRANTY_TEXT = (

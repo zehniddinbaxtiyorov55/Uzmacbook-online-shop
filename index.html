@@ -274,7 +274,8 @@ function sumBy(list, f) {
 }
 function calc(price, m) {
   const down = Math.ceil(price * plan.down / 100);
-  const rest = Math.round((price - down) * (1 + plan.pct / 100 * m) * 100) / 100;
+  const markup = price * plan.pct / 100 * m;       // har oy umumiy narxning pct% i
+  const rest = Math.round(((price - down) + markup) * 100) / 100;
   const monthly = Math.ceil(rest * 100 / m - 1e-9) / 100;
   return {down, monthly, total: Math.round((down + rest) * 100) / 100};
 }

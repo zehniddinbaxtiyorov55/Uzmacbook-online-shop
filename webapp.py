@@ -14,7 +14,7 @@ if URL and not URL.endswith("/"):
 ADMIN = os.environ.get("ADMIN_CHAT_ID", "")       # buyurtmalar keladigan chat
 TOKEN = os.environ["BOT_TOKEN"]
 SKIP = ("seriya", "imei", "serial")
-# Bo'lib to'lash: boshlang'ich %, oylar oralig'i, qoldiqqa oylik ustama %
+# Bo'lib to'lash: boshlang'ich %, oylar oralig'i, umumiy narxga har oy qo'shiladigan ustama %
 PLAN = {
     "down": float(os.environ.get("INSTALLMENT_DOWN_PCT", "50")),
     "min": int(os.environ.get("INSTALLMENT_MIN_MONTHS", "3")),
@@ -32,8 +32,11 @@ def is_mac(name, category, details):
 
 
 def plan_calc(price, months):
+    # Boshlang'ich to'lov + (qolgan summa + har oy umumiy narxning PLAN["pct"]% i)
+    # Masalan $2000, 3 oy: down $1000, ustama 6%*2000*3=$360, qolgani $1000+$360=$1360, jami $2360
     down = math.ceil(price * PLAN["down"] / 100)
-    rest = round((price - down) * (1 + PLAN["pct"] / 100 * months), 2)
+    markup = price * PLAN["pct"] / 100 * months
+    rest = round((price - down) + markup, 2)
     monthly = math.ceil(rest * 100 / months - 1e-9) / 100
     return down, monthly, round(down + rest, 2)
 
@@ -347,7 +350,7 @@ async def order(req):
             c = it["currency"]
             p = it["promo"] or it["price"]
             totals2[c] = totals2.get(c, 0) + (plan_calc(p, months)[2] if it.get("mac") else p)
-        pay = ("Bo'lib to'lash: %s oy (+%g%% oyiga)\nBoshlang'ich: %s\nOyiga: %s\nBo'lib to'lashda jami: %s"
+        pay = ("Bo'lib to'lash: %s oy (har oy narxning +%g%% ustama)\nBoshlang'ich: %s\nOyiga: %s\nBo'lib to'lashda jami: %s"
                % (months, PLAN["pct"], join(downs), join(monthlies), join(totals2)))
     else:
         pay = "To'lov: to'liq"
