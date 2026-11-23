@@ -37,10 +37,16 @@ def plan():
 
 
 MAC_RX = re.compile(r"macbook|\bmbp\b|\bmba\b", re.I)
+# "Chexol MacBook Air 13" kabi aksessuarlar MacBook hisoblanmaydi (bo'lib to'lash, kafolat, haftaning taklifi)
+ACC_RX = re.compile(r"aksessuar|аксессуар|accessor|chexol|чехол|plyonka|pl[ёе]nk|пл[её]нк|sumka|сумк|r[yu]?u?kzak|рюкзак|"
+                    r"\bcase\b|кейс|zaryad|заряд|kabel|кабел|adapter|адаптер|klaviatura|клавиатур|sichqon|mouse|мыш|"
+                    r"nakleyka|stiker|sticker|наклейк|himoya|защит", re.I)
 
 
 def is_mac(name, category, details):
-    """Bo'lib to'lash hozircha faqat MacBooklar uchun."""
+    """Bo'lib to'lash hozircha faqat MacBooklar uchun (aksessuarlarsiz)."""
+    if ACC_RX.search(name) or ACC_RX.search(category or ""):
+        return False
     return bool(MAC_RX.search(" ".join([name, category] + [v for _, v in details])))
 
 
@@ -332,6 +338,25 @@ async def logo(_):
                             headers={"Cache-Control": "public, max-age=86400"})
 
 
+INTRO_DIR = os.path.join(HERE, "static", "intro")
+INTRO_FILES = {"intro.css", "lid.png", "base.png", "logo-nodot.png", "logo-dot.png", "noise.png"}
+
+
+async def intro_file(req):
+    """Kirish animatsiyasi fayllari (CSS va rasmlar). Faqat ro'yxatdagi nomlar."""
+    name = req.match_info["name"]
+    if name not in INTRO_FILES:
+        raise web.HTTPNotFound()
+    return web.FileResponse(os.path.join(INTRO_DIR, name),
+                            headers={"Cache-Control": "public, max-age=86400"})
+
+
+def contact_username():
+    """Mini App'dagi "Savol berish" tugmasi shu Telegram akkauntga olib boradi."""
+    return (settings.get("questions_contact") or os.environ.get("QUESTIONS_CONTACT")
+            or "sherxonjumayev").strip().lstrip("@").split("/")[-1]
+
+
 async def products(_):
     rate, rdate = usd_rate()
     if rate is None and rate_cache["task"]:
@@ -343,7 +368,7 @@ async def products(_):
         rate, rdate = usd_rate()
     items = [public(i) for i in visible(await load())]
     return web.json_response({"items": items, "plan": plan(), "usd_uzs": rate,
-                              "rate_date": rdate},
+                              "rate_date": rdate, "contact": contact_username()},
                              headers={"Cache-Control": "no-store"})
 
 
@@ -443,6 +468,7 @@ def make_app(bot, billz_products, num):
     app = web.Application(client_max_size=12 * 1024 * 1024)  # admin paneldan rasm yuklash uchun
     app.router.add_get("/", index)
     app.router.add_get("/logo.png", logo)
+    app.router.add_get("/intro/{name}", intro_file)
     app.router.add_get("/api/rate", rate_info)
     app.router.add_get("/api/photos", photos_info)
     app.router.add_get("/mp/{key}/{name}", model_photo)

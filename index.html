@@ -3,189 +3,285 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Magic Pro</title>
+<meta name="theme-color" content="#000000">
+<title>MagicPro</title>
+<script>
+/* Kirish animatsiyasi: birinchi marta to'liq, keyin 6 soatda bir marta qisqa varianti */
+(function () {
+  var mode = "";
+  try {
+    if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var seen = localStorage.getItem("mp_intro"), t = +localStorage.getItem("mp_intro_t") || 0;
+    if (!seen) mode = "full"; else if (Date.now() - t > 6 * 3600e3) mode = "short";
+    if (mode) { localStorage.setItem("mp_intro", "1"); localStorage.setItem("mp_intro_t", String(Date.now())); }
+  } catch (e) { mode = "short"; }
+  if (mode) document.documentElement.setAttribute("data-intro", mode);
+})();
+</script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Unbounded:wght@500..800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#fff; --soft:#f5f5f7; --card:#fff; --tx:#1d1d1f; --tx2:#6e6e73; --line:#e8e8ed;
-  --ink:#1d1d1f; --ink-tx:#fff; --blue:#0071e3; --accent:#0071e3; --sale:#bf4800; --img:#f5f5f7;
-  --shadow:0 4px 20px rgba(0,0,0,.06);
-}
-html.dark{
-  --bg:#000; --soft:#1c1c1e; --card:#1c1c1e; --tx:#f5f5f7; --tx2:#98989d; --line:#2c2c2e;
-  --ink:#f5f5f7; --ink-tx:#000; --blue:#2997ff; --accent:#2997ff; --sale:#ff9f0a; --img:#1c1c1e; --shadow:none;
+  --bg:#000; --s1:#141416; --s2:#1c1c1e; --line:rgba(255,255,255,.08); --edge:rgba(255,255,255,.07);
+  --tx:#fff; --tx2:#98989d; --ok:#7ee0a6; --mid:#ffc266; --low:#ff8a80; --sale:#ff9466; --img:#f5f5f7;
+  --gloss:linear-gradient(180deg,#fff 0%,#f4f4f7 44%,#9e9ea6 53%,#e6e6ec 80%,#fff 100%);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{background:var(--bg);color:var(--tx);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,Roboto,sans-serif;
-  letter-spacing:-.016em;-webkit-font-smoothing:antialiased;padding-bottom:96px}
-h1,h2,h3,.pr{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Inter,Roboto,sans-serif}
-button{font:inherit;cursor:pointer;color:inherit}
+html,body{background:#000}
+body{color:var(--tx);font:15px/1.45 Inter,-apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-bottom:96px;overflow-x:hidden}
+html[data-intro] body>*:not(.xin){visibility:hidden}
+button{font:inherit;cursor:pointer;color:inherit;border:0;background:none}
 svg{display:block}
+.disp{font-family:Unbounded,"Arial Black",-apple-system,sans-serif}
+.gl{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-image:var(--gloss)}
 
-/* ---- sarlavha ---- */
-.top{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;padding:12px 20px 4px}
-.top h1{text-align:center;font-size:19px;font-weight:700;letter-spacing:-.01em}
-.ib{width:40px;height:40px;border:0;border-radius:50%;background:none;display:flex;align-items:center;justify-content:center;position:relative}
-.badge{position:absolute;right:4px;top:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--sale);color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center}
+/* ---- sarlavha va qidiruv ---- */
+.top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.logo{height:36px;width:auto;display:block}
+.ib{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:rgba(255,255,255,.06);
+  display:flex;align-items:center;justify-content:center;position:relative;color:#fff}
+.badge{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#fff;color:#000;
+  font-size:11px;font-weight:800;border:2px solid #000;display:none;align-items:center;justify-content:center}
 .badge.on{display:flex}
+.search{display:flex;align-items:center;gap:10px;margin:12px 16px 0;height:46px;padding:0 16px;border-radius:23px;
+  background:var(--s1);border:1px solid var(--line);color:var(--tx2)}
+#q{flex:1;border:0;background:none;color:#fff;font:inherit;font-size:15px;outline:none;min-width:0}
+#q::placeholder{color:#8e8e93}
 
-/* ---- kategoriyalar ---- */
-#cats{display:flex;gap:8px;overflow-x:auto;padding:14px 20px 4px;scrollbar-width:none}
+/* ---- haftaning taklifi ---- */
+.hero{position:relative;margin:14px 16px 0;height:300px;border-radius:26px;overflow:hidden;border:1px solid rgba(255,255,255,.09);
+  background:#141416;touch-action:pan-y}
+.hero[hidden]{display:none}
+.slide{position:absolute;inset:0;padding:52px 18px 18px;opacity:0;pointer-events:none;transition:opacity .45s;cursor:pointer}
+.slide.on{opacity:1;pointer-events:auto}
+.slide::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at var(--gx,90%) var(--gy,45%),rgba(255,255,255,.11),rgba(20,20,22,0) 65%)}
+.hw{position:absolute;right:14px;top:84px;width:146px;height:146px}
+.hph{width:146px;height:146px;border-radius:24px;overflow:hidden;background:var(--s2);display:flex;align-items:center;justify-content:center;
+  color:var(--tx2);box-shadow:0 22px 40px rgba(0,0,0,.65);position:relative}
+.hph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hph.stock{background:var(--img)}
+.hph.stock img{object-fit:contain;padding:12%;mix-blend-mode:multiply}
+.htx{position:relative;max-width:52%;display:flex;flex-direction:column;align-items:flex-start}
+.chip{height:26px;padding:0 10px;border-radius:13px;background:rgba(255,255,255,.14);color:#ebebf0;font-size:12px;font-weight:650;
+  display:flex;align-items:center;gap:6px;white-space:nowrap}
+.htx h2{margin-top:10px;font-size:18px;line-height:23px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.htx p{margin-top:4px;font-size:12.5px;line-height:18px;color:var(--tx2)}
+.hp{margin-top:8px;display:flex;align-items:baseline;gap:8px}
+.hp .disp{font-size:27px;line-height:34px;font-weight:700}
+.hp s{font-size:13px;color:var(--tx2)}
+.hm{font-size:12.5px;line-height:16px;font-weight:600;color:#fff}
+.cta{margin-top:12px;height:44px;padding:0 18px;border-radius:22px;background:#fff;color:#000;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.shim{background-image:linear-gradient(105deg,rgba(255,255,255,0) 40%,rgba(255,255,255,.95) 50%,rgba(255,255,255,0) 60%),var(--gloss);
+  background-size:250% 100%,100% 100%;background-repeat:no-repeat;background-position:180% 0,0 0}
+.slide.on .hw{animation:mIn .8s cubic-bezier(.2,.8,.2,1) both}
+.slide.on .hph{animation:fl 3.2s ease-in-out .8s infinite}
+.slide.on .a1{animation:up .5s .05s both}.slide.on .a2{animation:up .5s .12s both}
+.slide.on .a3{animation:up .5s .2s both}.slide.on .a4{animation:up .5s .28s both}
+.slide.on .shim{animation:shn 3s ease-in-out .6s infinite}
+.hbars{position:absolute;left:12px;right:12px;top:0;display:flex;gap:5px;z-index:2}
+.hb{flex:1;height:44px;padding-top:14px}
+.hb span{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.22);overflow:hidden}
+.hb i{display:block;height:100%;background:#fff;transform:scaleX(0);transform-origin:left center}
+.hb.done i{transform:scaleX(1)}
+.hb.on i{animation:run 4.5s linear both}
+@keyframes mIn{from{opacity:0;transform:translateX(50px) rotate(4deg) scale(.94)}to{opacity:1;transform:translateX(0) rotate(-3deg) scale(1)}}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes shn{0%{background-position:180% 0,0 0}45%,100%{background-position:-80% 0,0 0}}
+@keyframes run{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* ---- va'dalar va kategoriyalar ---- */
+.pp{margin:14px 16px 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pp div{height:44px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line);display:flex;align-items:center;
+  justify-content:center;gap:7px;font-size:12.5px;font-weight:600;color:#ebebf0;white-space:nowrap}
+#cats{display:flex;gap:8px;overflow-x:auto;padding:22px 16px 2px;scrollbar-width:none}
 #cats::-webkit-scrollbar{display:none}
-.cat{flex:none;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:76px}
-.cat .ci{width:48px;height:48px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--tx2);transition:.2s}
-.cat span{font-size:11px;line-height:1.25;color:var(--tx2);text-align:center;max-width:76px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.cat.on .ci{background:var(--ink);color:var(--ink-tx);box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--blue)}
-.cat.on span{color:var(--tx);font-weight:600}
-
-/* ---- qidiruv ---- */
-.search{display:flex;align-items:center;gap:10px;margin:14px 20px 0;height:46px;padding:0 16px;border-radius:23px;background:var(--soft);color:var(--tx2)}
-#q{flex:1;border:0;background:none;color:var(--tx);font:inherit;font-size:15px;outline:none;min-width:0}
-#q::placeholder{color:var(--tx2)}
-
-/* ---- banner ---- */
-.hero{position:relative;margin:18px 20px 0;border-radius:16px;overflow:hidden;min-height:150px;padding:20px;display:flex;flex-direction:column;justify-content:center;
-  background:radial-gradient(120% 140% at 90% 0%,#3a3a3c 0%,#1d1d1f 45%,#000 100%);color:#f5f5f7}
-.hero img{width:170px;height:auto;margin-left:-6px}
-.hero p{font-size:13px;opacity:.85;margin-top:6px;max-width:62%}
-.hero .pill{align-self:flex-start;margin-top:12px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:980px;background:var(--blue);color:#fff}
-.hero .lap{position:absolute;right:-30px;bottom:-14px;width:170px;opacity:.9}
-
-/* ---- bo'lim ---- */
-.sec{display:flex;justify-content:space-between;align-items:baseline;padding:26px 20px 12px}
-.sec h2{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.cat{flex:none;width:84px;height:84px;border-radius:18px;border:1px solid var(--line);background:var(--s1);color:#ebebf0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 6px}
+.cat span{font-size:12px;font-weight:600;line-height:1.2;text-align:center;max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cat.on{background:#fff;border-color:#fff;color:#000}
+.sec{display:flex;justify-content:space-between;align-items:center;padding:24px 16px 12px}
+.sec h2{font-size:17px;line-height:22px;font-weight:600}
 .sec span{font-size:13px;color:var(--tx2)}
 
 /* ---- kartochkalar ---- */
-#grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 14px;padding:0 20px 20px}
-@media (min-width:640px){#grid{grid-template-columns:repeat(3,1fr)}}
-.card{display:flex;flex-direction:column;cursor:pointer}
-.ph{position:relative;aspect-ratio:.82;border-radius:12px;background:var(--img);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--tx2)}
+#grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 16px 20px}
+@media (min-width:640px){#grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.card{background:var(--s1);border:1px solid var(--edge);border-radius:22px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer}
+.ph{position:relative;height:150px;background:radial-gradient(60% 70% at 50% 45%,rgba(255,255,255,.07),rgba(20,20,22,0) 70%),var(--s2);
+  display:flex;align-items:center;justify-content:center;color:var(--tx2);overflow:hidden}
 .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ph.stock{background:#f5f5f7}
-.ph.stock img{object-fit:contain;padding:12%;mix-blend-mode:multiply}
-.tag{position:absolute;left:8px;top:8px;font-size:10px;font-weight:700;padding:4px 8px;border-radius:10px;background:var(--bg);color:var(--sale)}
-.add{position:absolute;right:8px;bottom:8px;width:32px;height:32px;border:0;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 12px rgba(0,0,0,.18);transition:transform .15s}
+.ph.stock{background:var(--img)}
+.ph.stock img{object-fit:contain;padding:14%;mix-blend-mode:multiply}
+.gr{position:absolute;top:10px;left:10px;width:32px;height:32px;border-radius:11px;font:700 14px/32px Unbounded,"Arial Black",sans-serif;text-align:center;z-index:1}
+.gA{background:#fff;color:#000}
+.gB,.gC,.gD{background:rgba(28,28,30,.88);color:#fff;border:1px solid rgba(255,255,255,.28);line-height:30px}
+.gC,.gD{color:#c7c7cc;border-color:rgba(255,255,255,.18)}
+.tag{position:absolute;left:10px;bottom:12px;height:24px;padding:0 9px;border-radius:12px;font-size:11.5px;font-weight:650;background:rgba(0,0,0,.78);
+  border:1px solid rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;z-index:1}
+.tag.sale{background:var(--sale);border-color:var(--sale);color:#2a1206}
+.add{position:absolute;right:8px;bottom:8px;width:44px;height:44px;border-radius:22px;background:#fff;color:#000;display:flex;align-items:center;
+  justify-content:center;z-index:1;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:transform .15s}
 .add:active{transform:scale(.88)}
-.add.in{background:var(--ink);color:var(--ink-tx)}
-.nm{font-size:13px;font-weight:500;margin-top:10px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.pr{font-size:15px;font-weight:700;margin-top:4px}
-.pr small{font-size:12px;font-weight:500;color:var(--tx2);text-decoration:line-through;margin-left:6px}
-.mo{font-size:11px;font-weight:600;color:var(--accent);margin-top:2px}
-.bt{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.bt span{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:3px 7px;border-radius:8px;background:var(--soft);color:var(--tx)}
-.bt span svg{width:14px;height:14px}
-.bt .g{color:#1a8f3c}.bt .y{color:#b26a00}.bt .r{color:#d70015}
-html.dark .bt .g{color:#30d158}html.dark .bt .y{color:#ffd60a}html.dark .bt .r{color:#ff453a}
-.body .bt{margin-top:12px}.body .bt span{font-size:13px;padding:6px 10px;border-radius:10px}.body .bt span svg{width:17px;height:17px}
+.add.in{background:rgba(0,0,0,.72);color:#fff;border:1.5px solid #fff}
+.info{padding:12px 12px 14px;display:flex;flex-direction:column;flex:1}
+.nm{font-size:14.5px;line-height:19px;font-weight:600;min-height:38px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sp{margin-top:2px;font-size:12.5px;line-height:18px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;height:18px;color:var(--tx2)}
+.bar{width:36px;height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;flex:none}
+.bar i{display:block;height:100%;border-radius:3px;background:currentColor}
+.ok{color:var(--ok)}.mid{color:var(--mid)}.low{color:var(--low)}
+.wr{display:flex;align-items:center;gap:3px;color:var(--tx2)}
+.pr{margin-top:auto;padding-top:10px;font:700 18px/24px Unbounded,"Arial Black",sans-serif;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.pr s{font:500 12px Inter,sans-serif;color:var(--tx2);-webkit-text-fill-color:var(--tx2)}
+.pr.sale{color:#ffaf8a}
+.mo{font-size:12px;line-height:17px;color:#fff;font-weight:600;margin-top:1px}
 .msg{grid-column:1/-1;text-align:center;color:var(--tx2);padding:48px 0}
-.sk .ph,.sk .l{background:linear-gradient(90deg,var(--img) 25%,var(--soft) 50%,var(--img) 75%);background-size:200% 100%;animation:sh 1.2s infinite}
-.sk .l{height:11px;border-radius:6px;margin-top:9px}
-@keyframes sh{to{background-position:-200% 0}}
+.sk .ph,.sk .l{background:linear-gradient(90deg,#141416 25%,#222225 50%,#141416 75%);background-size:200% 100%;animation:sk 1.2s infinite}
+.sk .l{height:11px;border-radius:6px;margin:12px 12px 0}
+.sk .l.s{width:50%;margin-bottom:16px}
+@keyframes sk{to{background-position:-200% 0}}
 
 /* ---- tovar sahifasi ---- */
-.page{position:fixed;inset:0;z-index:10;background:var(--bg);overflow-y:auto;transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.8,.2,1);padding-bottom:110px}
-.page.open{transform:none}
-.pv{position:relative;height:min(52vh,400px);background:var(--img);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--tx2)}
-.pv::before{content:"";position:absolute;width:72%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.55)}
-html.dark .pv::before{background:rgba(255,255,255,.04)}
+.page{position:fixed;inset:0;z-index:10;background:#000;overflow-y:auto;transform:translateY(100%);visibility:hidden;
+  transition:transform .34s cubic-bezier(.2,.8,.2,1),visibility 0s .34s;padding-bottom:110px}
+.page.open{transform:none;visibility:visible;transition:transform .34s cubic-bezier(.2,.8,.2,1)}
+.pv{position:relative;height:min(48vh,380px);background:radial-gradient(55% 55% at 50% 50%,rgba(255,255,255,.1),rgba(0,0,0,0) 72%),#0a0a0a;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--tx2)}
 .pv .gal{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
 .pv .gal::-webkit-scrollbar{display:none}
 .pv .gal img{flex:none;width:100%;height:100%;object-fit:cover;scroll-snap-align:center}
-.pv.stock .gal img{object-fit:contain;padding:14% 10% 18%;mix-blend-mode:multiply}
-.pv .ib{position:absolute;top:14px;z-index:2;background:var(--bg);box-shadow:var(--shadow)}
-.dots{position:absolute;bottom:40px;left:0;right:0;display:flex;justify-content:center;gap:6px;z-index:2}
-.dots i{width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,.18)}
-.dots i.on{background:var(--tx)}
-.demo{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:11px;color:var(--tx2);z-index:2}
-.demo.mp{left:50%;right:auto;transform:translateX(-50%);background:rgba(0,0,0,.45);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
-.dots~.demo.mp{bottom:58px}
-.body{position:relative;margin-top:-24px;background:var(--bg);border-radius:26px 26px 0 0;padding:26px 22px 0;box-shadow:0 -6px 20px rgba(0,0,0,.04)}
-.hd{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
-.hd h3{font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.01em}
-.hd .pr{font-size:22px;font-weight:800;margin:0;white-space:nowrap;text-align:right}
-.hd .pr small{display:block;margin:0}
-.uzs{font-size:14px;color:var(--tx2);margin-top:6px;font-weight:500}
-.rate{font-size:11px;color:var(--tx2);margin-top:1px}
-.qleft{font-size:12px;color:var(--sale);margin-top:6px;font-weight:600}
-.blk{border-top:1px solid var(--line);margin-top:20px;padding-top:18px}
-.blk h4{font-size:16px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
-.row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;font-size:14px}
+.pv.stock .gal{inset:22px 22px 40px;border-radius:24px;background:var(--img)}
+.pv.stock .gal img{object-fit:contain;padding:10%;mix-blend-mode:multiply}
+.pb{position:absolute;top:16px;height:30px;padding:0 11px;border-radius:15px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.14);
+  font-size:12.5px;font-weight:650;display:flex;align-items:center;gap:6px;z-index:2;color:#fff}
+.pb.l{left:16px}.pb.r{right:16px}
+.hasback .pb.l{left:70px}
+.pv .ib{position:absolute;left:16px;top:10px;z-index:3;background:rgba(0,0,0,.72)}
+.dots{position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:6px;z-index:2}
+.dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);transition:width .2s}
+.dots i.on{width:18px;background:#fff}
+.body{padding:0 16px}
+.ttl{margin-top:18px;font-size:21px;line-height:27px;font-weight:600}
+.subt{margin-top:4px;font-size:15px;line-height:22px;color:var(--tx2)}
+.box{background:var(--s1);border:1px solid var(--edge);border-radius:22px;margin-top:12px;padding:16px}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.h4{font:600 15px/22px Unbounded,"Arial Black",sans-serif}
+.hint{font-size:13px;color:var(--tx2)}
+.lbl{font-size:12.5px;line-height:18px;color:var(--tx2)}
+.big{font-size:25px;line-height:32px;font-weight:700}
+.old{font-size:13px;color:var(--tx2);text-decoration:line-through;margin-top:2px}
+.hr{height:1px;background:rgba(255,255,255,.08);margin:12px 0}
+.mrow b{font-size:15px;line-height:22px;font-weight:650}
+.mchip{height:26px;padding:0 10px;border-radius:13px;background:rgba(255,255,255,.14);color:#ebebf0;font-size:12px;font-weight:650;display:flex;align-items:center;white-space:nowrap}
+.rate{margin-top:6px;font-size:12.5px;line-height:18px;color:var(--tx2)}
+.qleft{margin-top:8px;font-size:12.5px;font-weight:650;color:var(--sale)}
+.gauges{margin-top:12px;display:grid;grid-template-columns:repeat(var(--c,3),minmax(0,1fr));gap:8px}
+.gauge{background:var(--s1);border:1px solid var(--edge);border-radius:20px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.gv{width:56px;height:56px;border-radius:28px;display:flex;align-items:center;justify-content:center;position:relative;flex:none}
+.gv.L{font:700 26px/1 Unbounded,"Arial Black",sans-serif;background:rgba(255,255,255,.14);color:#fff}
+.gv.LA{background:#fff;color:#000}
+.gv.S{background:rgba(255,255,255,.12);color:#fff}
+.gv svg.ring{position:absolute;inset:0;transform:rotate(-90deg)}
+.gv b{position:relative;font-size:13px;font-weight:750}
+.g1{margin-top:10px;font-size:13px;line-height:18px;font-weight:650}
+.gs{font-size:11.5px;line-height:16px;color:var(--tx2)}
+.meter{margin-top:14px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.meter div{display:flex;flex-direction:column;gap:6px}
+.meter i{height:8px;border-radius:4px;background:rgba(255,255,255,.12)}
+.meter i.on{background:#fff}
+.meter span{font-size:11.5px;line-height:16px;color:var(--tx2)}
+.meter span.on{color:#fff;font-weight:700}
+.gtext{margin-top:12px;font-size:14px;line-height:21px;color:#d1d1d6}
+.mch{margin-top:14px;display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));gap:6px}
+.m{height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#ebebf0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.m b{font-size:16px;line-height:18px}
+.m small{font-size:11px;line-height:13px;color:var(--tx2)}
+.m.on{background:#fff;border-color:#fff;color:#000}
+.m.on small{color:#3a3a3c}
+.monthly{margin-top:16px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.monthly .disp{font-size:24px;line-height:30px;font-weight:700}
+.monthly span:last-child{font-size:13px;color:var(--tx2)}
+.pl{margin-top:10px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px}
+.pl span{color:var(--tx2)}
+.pl b{font-weight:650;text-align:right}
+.pnote{margin-top:10px;font-size:12.5px;line-height:18px;color:var(--tx2)}
+.soon{display:flex;gap:12px;align-items:flex-start}
+.soon b{display:block;font-size:14px}
+.soon span{display:block;color:var(--tx2);font-size:12.5px;margin-top:2px;line-height:1.45}
+.row{display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;line-height:20px}
+.row:last-child{border-bottom:0}
 .row span:first-child{color:var(--tx2)}
 .row span:last-child{font-weight:600;text-align:right}
-.mch{display:flex;gap:10px;flex-wrap:wrap}
-.m{width:44px;height:44px;border:0;border-radius:50%;background:var(--soft);color:var(--tx2);font-size:14px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
-.m small{font-size:9px;font-weight:500;margin-top:2px}
-.m.on{background:var(--blue);color:#fff}
-.pl{display:flex;justify-content:space-between;padding-top:12px;font-size:14px}
-.pl span{color:var(--tx2)}
-.pl b{font-weight:700}
-.pl.hi b{font-size:18px;color:var(--accent)}
-.soon{display:flex;gap:12px;align-items:flex-start;background:var(--soft);border-radius:14px;padding:14px}
-.soon-i{flex:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;background:linear-gradient(135deg,#0071e3,#5ac8fa)}
-.soon b{display:block;font-size:14px}
-.soon span{display:block;color:var(--tx2);font-size:12px;margin-top:2px;line-height:1.4}
-.pnote{color:var(--tx2);font-size:12px;margin-top:12px;line-height:1.4}
+.prm{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.prm:last-child{border-bottom:0}
+.pri{width:40px;height:40px;flex:none;border-radius:13px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center}
+.prm b{display:block;font-size:14px;line-height:20px;font-weight:650}
+.prm span{display:block;font-size:12.5px;line-height:18px;color:var(--tx2)}
+.ask{width:100%;margin-top:12px;height:50px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);
+  color:#fff;font-weight:650;display:flex;align-items:center;justify-content:center;gap:8px}
 
 /* ---- savat ---- */
-.ct{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;padding:14px 16px 6px}
-.ct h3{text-align:center;font-size:18px;font-weight:700}
-.items{padding:10px 20px 0;display:flex;flex-direction:column;gap:14px}
-.ci2{display:flex;background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--line)}
-.th{flex:none;width:96px;position:relative;background:var(--img);display:flex;align-items:center;justify-content:center;color:var(--tx2)}
+.ct{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:14px 16px 6px}
+.ct h3{text-align:center;font:600 17px/1.3 Unbounded,"Arial Black",sans-serif}
+.items{padding:10px 16px 0;display:flex;flex-direction:column;gap:12px}
+.ci2{display:flex;background:var(--s1);border:1px solid var(--edge);border-radius:18px;overflow:hidden}
+.th{flex:none;width:96px;min-height:96px;position:relative;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--tx2)}
 .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.th.stock{background:var(--img)}
 .th.stock img{object-fit:contain;padding:10%;mix-blend-mode:multiply}
 .th svg{width:34px;height:34px}
 .ci2 .in{flex:1;padding:12px 12px 12px 14px;min-width:0}
 .ci2 .t{display:flex;justify-content:space-between;gap:8px}
-.ci2 .t b{font-size:14px;font-weight:700;line-height:1.3}
-.rm{flex:none;border:0;background:none;color:var(--tx2);width:24px;height:24px;display:flex;align-items:center;justify-content:center}
-.ci2 .p{font-size:16px;font-weight:800;margin-top:6px}
-.ci2 .s{font-size:11px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sum{margin:22px 0 0;padding:6px 20px 0;border-radius:26px 26px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.05);background:var(--bg)}
-.sr{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--line);font-size:14px}
-.sr span{color:var(--tx2)}
-.sr.big{border:0;font-size:15px}
-.sr.big b{font-size:20px;font-weight:800}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:23px;padding:4px;margin-bottom:14px}
-.seg button{border:0;border-radius:19px;padding:9px;background:none;font-size:13px;font-weight:600;color:var(--tx2)}
-.seg button.on{background:var(--card);color:var(--tx);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-.phb{width:100%;margin-top:18px;border:0;border-radius:23px;padding:14px 18px;background:var(--soft);color:var(--tx);font-weight:600;font-size:15px;
+.ci2 .t b{font-size:14px;font-weight:650;line-height:1.3}
+.rm{flex:none;width:36px;height:36px;margin:-8px -8px 0 0;color:var(--tx2);display:flex;align-items:center;justify-content:center}
+.ci2 .p{font:700 15px/1.3 Unbounded,"Arial Black",sans-serif;margin-top:6px}
+.ci2 .s{font-size:11.5px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum{padding:6px 16px 0}
+.sr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:16px 0 4px;font-size:14px}
+.sr b{font:700 19px/1.3 Unbounded,"Arial Black",sans-serif}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--s2);border-radius:23px;padding:4px;margin-top:12px}
+.seg button{border-radius:19px;padding:10px;font-size:13px;font-weight:600;color:var(--tx2)}
+.seg button.on{background:#fff;color:#000}
+.phb{width:100%;margin-top:16px;border-radius:16px;padding:14px 18px;background:var(--s2);color:#fff;font-weight:600;font-size:15px;
   display:flex;align-items:center;justify-content:center;gap:8px}
-.phb svg{width:20px;height:20px;color:var(--blue)}
-.pho{margin-top:18px;border:1px solid var(--line);border-radius:23px;padding:12px 18px;display:flex;align-items:center;gap:10px}
-.pho svg{flex:none;width:20px;height:20px;color:#1a8f3c}
-html.dark .pho svg{color:#30d158}
+.phb svg{width:20px;height:20px}
+.pho{margin-top:16px;border:1px solid var(--line);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.pho svg{flex:none;width:20px;height:20px;color:var(--ok)}
 .pho b{font-size:15px}
 .pho span{font-size:12px;color:var(--tx2);display:block}
-.tel{width:100%;border:1px solid var(--line);border-radius:23px;padding:13px 18px;background:var(--bg);color:var(--tx);font:inherit;outline:none;margin-top:18px}
-.tel:focus{border-color:var(--blue)}
+.tel{width:100%;border:1px solid var(--line);border-radius:16px;padding:13px 16px;background:var(--s1);color:#fff;font:inherit;outline:none;margin-top:16px}
+.tel:focus{border-color:#fff}
 .note{color:var(--tx2);font-size:12px;margin-top:10px;text-align:center}
-#fab{position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:20;border:0;border-radius:980px;padding:16px;background:var(--blue);color:#fff;box-shadow:0 8px 24px rgba(0,113,227,.3);
-  font-weight:700;font-size:16px;display:none;align-items:center;justify-content:center;gap:10px}
+#fab{position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:20;border-radius:16px;height:52px;background:#fff;color:#000;
+  font-weight:700;font-size:16px;display:none;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 </style>
 </head>
 <body>
-<div class="top">
-  <span></span>
-  <h1>Magic Pro</h1>
+<header class="top">
+  <img class="logo" src="logo.png" alt="MagicPro" width="98" height="36">
   <button class="ib" id="cartBtn" aria-label="Savat">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
     <span class="badge" id="badge"></span>
   </button>
-</div>
-<div id="cats"></div>
+</header>
 <label class="search">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-  <input id="q" type="search" placeholder="Qidirish: Air M1, 16/512..." autocomplete="off">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  <input id="q" type="search" placeholder="Qidirish: Air M1, 16/512…" autocomplete="off" aria-label="Qidirish">
 </label>
-<div class="hero">
-  <img src="logo.png" alt="Magic Pro" width="170" height="62">
-  <p id="sub">MacBooklar · narxlar real vaqtda</p>
-  <span class="pill" id="heroPill">Bo'lib to'lash · 8 oygacha</span>
+<section class="hero" id="hero" aria-label="Haftaning taklifi" hidden></section>
+<div class="pp">
+  <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/></svg>3 oy kafolat</div>
+  <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg><span id="ppPlan">8 oy bo'lib</span></div>
+  <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>Yetkazish</div>
 </div>
-<div class="sec"><h2 id="secTitle">Barcha mahsulotlar</h2><span id="secCount"></span></div>
+<nav id="cats" aria-label="Turkumlar"></nav>
+<div class="sec"><h2 class="disp gl" id="secTitle">Barcha mahsulotlar</h2><span id="secCount"></span></div>
 <main id="grid"></main>
 
 <div class="page" id="page"></div>
@@ -194,53 +290,64 @@ html.dark .pho svg{color:#30d158}
 <script>
 const tg = window.Telegram && Telegram.WebApp;
 const inTg = !!(tg && tg.initData);
-const dark = tg && tg.colorScheme ? tg.colorScheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-if (dark) document.documentElement.classList.add("dark");
-const C = dark ? {bg:"#000000", ink:"#2997ff", inkTx:"#ffffff"} : {bg:"#ffffff", ink:"#0071e3", inkTx:"#ffffff"};
+const hasSecondary = !!(inTg && tg.SecondaryButton && tg.isVersionAtLeast && tg.isVersionAtLeast("7.10"));
 if (tg) {
   tg.ready(); tg.expand();
-  try { tg.setHeaderColor(C.bg); tg.setBackgroundColor(C.bg); tg.MainButton.setParams({color: C.ink, text_color: C.inkTx}); } catch (e) {}
+  try { tg.setHeaderColor("#000000"); tg.setBackgroundColor("#000000"); } catch (e) {}
+  try { tg.setBottomBarColor && tg.setBottomBarColor("#000000"); } catch (e) {}
+  try { tg.MainButton.setParams({color: "#FFFFFF", text_color: "#000000"}); } catch (e) {}
 }
 
-let items = [], cat = "Hammasi", view = null, curId = null;
+let items = [], cat = "Hammasi", view = null, curId = null, contact = "";
 let myPhone = "", phoneShared = false;
 const canContact = !!(inTg && tg.requestContact && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9"));
 let plan = {down: 50, min: 3, max: 8, pct: 6}, usdUzs = null, rateDate = "", itemM = 8, payM = 0;
 const cart = new Set();
 const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const byId = id => items.find(i => i.id === id);
 const cost = i => i.promo || i.price;
+const isUsd = i => /usd|\$/i.test(i.currency || "USD");
 const sp3 = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const ICON = `<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>`;
+const S = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
 const I = {
-  back: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`,
-  plus: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
-  check: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>`,
-  x: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
-  all: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>`,
-  mac: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 18.5h19"/></svg>`,
-  phone: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg>`,
-  tab: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M11 17.5h2"/></svg>`,
-  acc: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>`,
-  head: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>`,
-  glasses: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="14" r="3.5"/><circle cx="17.5" cy="14" r="3.5"/><path d="M10 14c.7-1 3.3-1 4 0M3 13l1.5-5h2M21 13l-1.5-5h-2"/></svg>`,
-  vr: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-2.5h-4L8 17H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/><circle cx="7.5" cy="12.5" r="1.3"/><circle cx="16.5" cy="12.5" r="1.3"/></svg>`,
-  game: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9h10a4 4 0 0 1 3.9 4.9l-.6 2.6a2 2 0 0 1-3.5.8L15 15H9l-1.8 2.3a2 2 0 0 1-3.5-.8l-.6-2.6A4 4 0 0 1 7 9z"/><path d="M8 11.5v2.5M6.75 12.75h2.5"/><circle cx="15.5" cy="12" r=".6"/><circle cx="17" cy="13.5" r=".6"/></svg>`,
-  cam: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
-  speaker: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><circle cx="12" cy="14.5" r="3"/><circle cx="12" cy="7.5" r="1"/></svg>`,
-  monitor: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20h8"/></svg>`,
-  kbd: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="2"/><path d="M6 10.5h.01M9 10.5h.01M12 10.5h.01M15 10.5h.01M18 10.5h.01M7.5 14h9"/></svg>`,
-  mouse: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/></svg>`,
-  plug: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M7 7h10v3a5 5 0 0 1-10 0V7zM12 15v6"/></svg>`,
-  tag: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>`,
-  watch: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="6.5" y="6" width="11" height="12" rx="3"/><path d="M9 6l.5-3h5l.5 3M9 18l.5 3h5l.5-3"/></svg>`,
-  bag: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`,
+  back: `<svg width="20" height="20" viewBox="0 0 24 24" ${S} stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg>`,
+  plus: `<svg width="20" height="20" viewBox="0 0 24 24" ${S} stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>`,
+  check: `<svg width="20" height="20" viewBox="0 0 24 24" ${S} stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7"/></svg>`,
+  x: `<svg width="16" height="16" viewBox="0 0 24 24" ${S} stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  shield: `<svg width="12" height="12" viewBox="0 0 24 24" ${S} stroke-width="2.2"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/></svg>`,
+  shieldL: `<svg width="22" height="22" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  cal: `<svg width="20" height="20" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>`,
+  truck: `<svg width="20" height="20" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>`,
+  camera: `<svg width="15" height="15" viewBox="0 0 24 24" ${S} stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  chat: `<svg width="19" height="19" viewBox="0 0 24 24" ${S} stroke-width="1.9"><path d="M4 5h16v11H9l-5 4V5z"/></svg>`,
+  arrow: `<svg width="16" height="16" viewBox="0 0 24 24" ${S} stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`,
+  spark: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg>`,
+  all: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>`,
+  mac: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 18.5h19"/></svg>`,
+  phone: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg>`,
+  tab: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M11 17.5h2"/></svg>`,
+  head: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>`,
+  glasses: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><circle cx="6.5" cy="14" r="3.5"/><circle cx="17.5" cy="14" r="3.5"/><path d="M10 14c.7-1 3.3-1 4 0M3 13l1.5-5h2M21 13l-1.5-5h-2"/></svg>`,
+  vr: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M4 8h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-2.5h-4L8 17H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/><circle cx="7.5" cy="12.5" r="1.3"/><circle cx="16.5" cy="12.5" r="1.3"/></svg>`,
+  game: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M7 9h10a4 4 0 0 1 3.9 4.9l-.6 2.6a2 2 0 0 1-3.5.8L15 15H9l-1.8 2.3a2 2 0 0 1-3.5-.8l-.6-2.6A4 4 0 0 1 7 9z"/><path d="M8 11.5v2.5M6.75 12.75h2.5"/></svg>`,
+  cam: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  speaker: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="6" y="3" width="12" height="18" rx="2.5"/><circle cx="12" cy="14.5" r="3"/><circle cx="12" cy="7.5" r="1"/></svg>`,
+  monitor: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20h8"/></svg>`,
+  kbd: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="2.5" y="7" width="19" height="10" rx="2"/><path d="M6 10.5h.01M9 10.5h.01M12 10.5h.01M15 10.5h.01M18 10.5h.01M7.5 14h9"/></svg>`,
+  mouse: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/></svg>`,
+  plug: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M9 3v4M15 3v4M7 7h10v3a5 5 0 0 1-10 0V7zM12 15v6"/></svg>`,
+  bagC: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`,
+  tag: `<svg width="24" height="24" viewBox="0 0 24 24" ${S} stroke-width="1.8"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>`,
+  watch: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6.5" y="6" width="11" height="12" rx="3"/><path d="M9 6l.5-3h5l.5 3M9 18l.5 3h5l.5-3"/></svg>`,
+  bag: `<svg width="18" height="18" viewBox="0 0 24 24" ${S} stroke-width="1.9"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`,
 };
 const CAT_ICONS = [
   [/\bvr\b|virtual|vision pro|oculus|quest/, "vr"],
   [/ko.?zoynak|glasses|ochki|очки|ray.?ban/, "glasses"],
-  [/airpods|quloqchin|naushnik|наушник|headphone|earbud|garnitura|гарнитур/, "head"],
+  [/airpods|quloqchin|naushnik|наушник|headphone|earbud|garnitura|гарнитур|audio/, "head"],
   [/smartfon|smartphone|iphone|phone|telefon|телефон|samsung|xiaomi|pixel/, "phone"],
   [/ipad|plansh|tablet|планшет/, "tab"],
   [/watch|soat|часы/, "watch"],
@@ -251,6 +358,7 @@ const CAT_ICONS = [
   [/kolonka|колонк|speaker|homepod|jbl|marshall/, "speaker"],
   [/klaviatura|keyboard|клавиатур/, "kbd"],
   [/mouse|sichqon|мыш|trackpad/, "mouse"],
+  [/sumka|r[yu]?u?kzak|рюкзак|сумк|bag|chexol|чехол|case/, "bagC"],
   [/zaryad|kabel|adapter|charger|power ?bank|зарядк|кабел|magsafe/, "plug"],
   [/aksessuar|аксессуар|accessor/, "plug"],
 ];
@@ -260,7 +368,9 @@ function catIcon(n) {
   for (const [rx, k] of CAT_ICONS) if (rx.test(n)) return I[k];
   return I.tag;
 }
-const catLabel = n => n.split(/\s*[>\/]\s*/).filter(Boolean).pop() || n;
+/* Billz'dagi xato yozuvlarni Mini App'da to'g'rilab ko'rsatish */
+const fixWords = s => s.replace(/\brguzak\b/gi, "ryukzak").replace(/\brukzak\b/gi, "ryukzak");
+const catLabel = n => fixWords(n.split(/\s*[>\/]\s*/).filter(Boolean).pop() || n);
 
 function money(v, c) {
   v = Math.round(v * 100) / 100;
@@ -268,6 +378,9 @@ function money(v, c) {
   const n = sp3(a) + (b ? "." + b : "");
   return (!c || /usd|\$/i.test(c)) ? "$" + n : n + " so'm";
 }
+/* Tovar ichida narx so'mda (kurs bo'lsa), ro'yxatda esa dollarda */
+const somOK = i => !!(usdUzs && isUsd(i));
+function som(i, v) { return somOK(i) ? sp3(Math.round(v * usdUzs / 1000) * 1000) + " so'm" : money(v, i.currency); }
 function totalStr(list) { return sumBy(list, cost); }
 function sumBy(list, f) {
   const t = {};
@@ -281,13 +394,12 @@ function calc(price, m) {
   const monthly = Math.ceil(rest * 100 / m - 1e-9) / 100;
   return {down, monthly, total: Math.round((down + rest) * 100) / 100};
 }
-function months() { const a = []; for (let m = plan.min; m <= plan.max; m++) a.push(m); return a; }
-function uzs(i) {
-  if (!usdUzs || !/usd|\$/i.test(i.currency || "USD")) return "";
-  const v = Math.round(cost(i) * usdUzs / 1000) * 1000;
-  return `<div class="uzs">≈ ${sp3(v)} so'm</div>
-    <div class="rate">Kurs: 1$ = ${sp3(usdUzs)} so'm${rateDate ? " · " + esc(rateDate) : ""}</div>`;
+/* Ro'yxatdagi "oyiga ... dan" — butun songa yaxlitlab (yuqoriga) */
+function perMonth(i) {
+  const v = calc(cost(i), plan.max).monthly;
+  return isUsd(i) ? money(Math.ceil(v), i.currency) : money(Math.ceil(v / 1000) * 1000, i.currency);
 }
+function months() { const a = []; for (let m = plan.min; m <= plan.max; m++) a.push(m); return a; }
 function pics(i) {
   if (i.photos.length) return {list: i.photos, stock: false};                      // tovarning o'z rasmi (Billz)
   if (i.mphotos && i.mphotos.length) return {list: i.mphotos, stock: false, model: true};  // model rasmi (admin panel)
@@ -302,23 +414,57 @@ window.nextImg = function (el) {
   if (rest.length) { el.dataset.alt = rest.slice(1).join("|"); el.src = rest[0]; }
   else { const p = el.closest(".stock"); p && p.classList.remove("stock"); el.outerHTML = ICON; }
 };
-function batt(i) {
+
+/* ---- Billz xarakteristikalaridan ma'lumot ---- */
+function det(i, rx) { for (const [k, v] of i.details) if (rx.test(String(k).toLowerCase())) return String(v); return ""; }
+const GRADE = {
+  A: ["A'lo", "Ehtiyotkor ishlatilgan: korpus va ekranda iz yo'q, hamma qismi joyida."],
+  B: ["Yaxshi", "Yaxshi saqlangan: mayda, deyarli sezilmaydigan izlar bor, hammasi ishlaydi."],
+  C: ["O'rtacha", "Ko'rinadigan izlar bor, lekin hamma qismi to'liq ishlaydi."],
+  D: ["Arzon", "Korpusda sezilarli izlar bor, ishlashi joyida. Eng arzon variant."],
+};
+const LEVEL = {D: 1, C: 2, B: 3, A: 4};
+function grade(i) {
+  for (const [k, v] of i.details) {
+    if (!/daraja|holat|grade|sinf|состоян|класс|condition/.test(String(k).toLowerCase())) continue;
+    const s = String(v).trim(), m = s.match(/^([abcd])(\b|$)/i) || s.match(/\b([abcd])\b/i);
+    if (m) return m[1].toUpperCase();
+  }
+  return "";
+}
+function battery(i) {
   let b = null, c = null;
   for (const [k, v] of i.details) {
-    const key = k.toLowerCase();
-    if (b === null && /batar|battery|акб|батар|health|sog'?liq/.test(key)) { const m = String(v).match(/\d{2,3}/); if (m) b = +m[0]; }
+    const key = String(k).toLowerCase();
+    if (b === null && /batar|battery|акб|батар|health|sog'?liq/.test(key)) { const m = String(v).match(/\d{2,3}/); if (m) b = Math.min(+m[0], 100); }
     if (c === null && /sikl|cycle|цикл/.test(key)) { const m = String(v).match(/\d+/); if (m) c = +m[0]; }
   }
-  if (b === null && c === null) return "";
-  const cls = b === null ? "" : b >= 90 ? "g" : b >= 80 ? "y" : "r";
-  const ic = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M21.5 10.5v3" stroke-linecap="round"/>${b === null ? "" : `<rect x="4.5" y="9" width="${Math.max(1, Math.round(13 * Math.min(b, 100) / 100))}" height="6" rx="1" fill="currentColor" stroke="none"/>`}</svg>`;
-  const cy = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>`;
-  return `<div class="bt">${b !== null ? `<span class="${cls}">${ic}${b}%</span>` : ""}${c !== null ? `<span>${cy}${c} sikl</span>` : ""}</div>`;
+  return {b, c};
 }
-function specs(i) { return i.details.slice(0, 3).map(d => d[1]).join(" · "); }
+const bcls = b => b === null ? "" : b >= 90 ? "ok" : b >= 80 ? "mid" : "low";
+/* Kafolat: Apple M chipli MacBook — 3 oy, Intel — 1 oy */
+function warranty(i) {
+  if (!i.mac) return 0;
+  const t = (i.name + " " + i.details.map(d => d.join(" ")).join(" ")).toLowerCase();
+  if (/\bm[1-9]\b|apple m\d|\bm[1-9] ?(pro|max|ultra)\b/.test(t)) return 3;
+  if (/intel|core ?i[3579]|\bi[3579]\b/.test(t)) return 1;
+  const y = t.match(/\b(20[12]\d)\b/);
+  if (y) return +y[1] >= 2021 ? 3 : +y[1] <= 2019 ? 1 : 0;
+  return 0;
+}
+function shortSpec(i) {
+  const num = s => (String(s).match(/\d+/) || [""])[0];
+  const ram = num(det(i, /\bram\b|ozu|operativ|memory|озу|оператив/));
+  const ssd = num(det(i, /ssd|storage|disk|hdd|накоп|ichki|xotira/));
+  const color = det(i, /rang|color|цвет/);
+  const parts = [];
+  if (ram && ssd && ram !== ssd) parts.push(`${ram}/${ssd} GB`); else if (ssd || ram) parts.push(`${ssd || ram} GB`);
+  if (color) parts.push(color);
+  return parts.length ? parts.join(" · ") : i.details.slice(0, 3).map(d => d[1]).join(" · ");
+}
 function haptic(t) { try { tg.HapticFeedback.impactOccurred(t || "light"); } catch (e) {} }
 
-/* ---- asosiy tugma ---- */
+/* ---- Telegram tugmalari ---- */
 let mainHandler = () => {};
 function setMain(text, onClick) {
   if (inTg) {
@@ -331,9 +477,22 @@ function setMain(text, onClick) {
     b.innerHTML = text ? I.bag + esc(text) : ""; b.style.display = text ? "flex" : "none"; b.onclick = onClick;
   }
 }
+function askManager() {
+  const u = "https://t.me/" + (contact || "sherxonjumayev");
+  try { inTg ? tg.openTelegramLink(u) : window.open(u, "_blank"); } catch (e) { location.href = u; }
+}
+function setSecondary(show) {
+  if (!hasSecondary) return;
+  try {
+    if (show) tg.SecondaryButton.setParams({text: "Savol berish", color: "#1C1C1E", text_color: "#FFFFFF", position: "left", is_visible: true});
+    else tg.SecondaryButton.hide();
+  } catch (e) {}
+}
+if (hasSecondary) tg.SecondaryButton.onClick(askManager);
 function refreshMain() {
   const n = cart.size;
   $("#badge").textContent = n; $("#badge").classList.toggle("on", n > 0);
+  setSecondary(view === "item");
   if (view === "cart") return setMain("Buyurtma berish", submit);
   if (view === "item") {
     const inC = cart.has(curId);
@@ -346,11 +505,74 @@ function refreshMain() {
   setMain(list.length ? `Savat · ${list.length} ta · ${totalStr(list)}` : "", openCart);
 }
 
+/* ---- Haftaning taklifi: eng arzon 3 ta MacBook ---- */
+let hero = [], hi = 0, hTimer = null;
+const usdOf = i => isUsd(i) ? cost(i) : cost(i) / (usdUzs || 12000);
+function pickHero() { return items.filter(i => i.mac).sort((a, b) => usdOf(a) - usdOf(b)).slice(0, 3); }
+const GLOW = [[90, 45], [80, 30], [95, 65]];
+function heroSlide(i, k, n) {
+  const P = pics(i), g = grade(i), B = battery(i);
+  const sub = [g ? GRADE[g][0] + " holat" : "", B.b !== null ? `batareya ${B.b}%` : shortSpec(i)].filter(Boolean).join(" · ");
+  return `<div class="slide ${k === hi ? "on" : ""}" style="--gx:${GLOW[k % 3][0]}%;--gy:${GLOW[k % 3][1]}%" data-open="${esc(i.id)}">
+    <div class="hw"><div class="hph ${P.stock && P.list.length ? "stock" : ""}">${imgTag(P.list)}</div></div>
+    <div class="htx">
+      <span class="chip a1">${I.spark}Haftaning taklifi${n > 1 ? ` · ${k + 1}/${n}` : ""}</span>
+      <h2 class="disp gl a2">${esc(i.name)}</h2>
+      <p class="a2">${esc(sub)}</p>
+      <div class="hp a3"><span class="disp gl shim">${money(cost(i), i.currency)}</span>${i.promo ? `<s>${money(i.price, i.currency)}</s>` : ""}</div>
+      <div class="hm a3">oyiga ${perMonth(i)} dan</div>
+      <button class="cta a4" data-open="${esc(i.id)}">Ko'rish${I.arrow}</button>
+    </div></div>`;
+}
+function renderHero() {
+  const box = $("#hero"), show = hero.length && cat === "Hammasi" && !$("#q").value.trim();
+  if (!show) { box.hidden = true; clearInterval(hTimer); return; }
+  if (!box.dataset.ready) {
+    hi = 0;
+    box.innerHTML = hero.map((i, k) => heroSlide(i, k, hero.length)).join("") +
+      (hero.length > 1 ? `<div class="hbars">${hero.map((_, k) => `<button class="hb ${k === 0 ? "on" : ""}" data-hb="${k}" aria-label="${k + 1}-taklif"><span><i></i></span></button>`).join("")}</div>` : "");
+    box.dataset.ready = "1";
+  }
+  box.hidden = false; startHero();
+}
+function setHero(k) {
+  const n = hero.length; if (!n) return;
+  hi = ((k % n) + n) % n;
+  $$("#hero .slide").forEach((s, j) => s.classList.toggle("on", j === hi));
+  const bars = $$("#hero .hb");
+  bars.forEach((b, j) => { b.classList.remove("on"); b.classList.toggle("done", j < hi); });
+  if (bars[hi]) { void bars[hi].offsetWidth; bars[hi].classList.add("on"); }
+  startHero();
+}
+function startHero() {
+  clearInterval(hTimer);
+  const busy = view || document.documentElement.hasAttribute("data-intro");   // animatsiya paytida karusel kutib turadi
+  if (hero.length > 1 && !busy) hTimer = setInterval(() => setHero(hi + 1), 4500);
+}
+
 /* ---- bosh sahifa ---- */
 function renderCats() {
   const names = ["Hammasi", ...new Set(items.map(i => i.category))];
   $("#cats").innerHTML = names.map(n => `<button class="cat ${n === cat ? "on" : ""}" data-c="${esc(n)}">
-    <div class="ci">${catIcon(n)}</div><span title="${esc(n)}">${esc(catLabel(n))}</span></button>`).join("");
+    ${catIcon(n)}<span title="${esc(n)}">${esc(catLabel(n))}</span></button>`).join("");
+}
+function card(i) {
+  const P = pics(i), g = grade(i), B = battery(i), w = warranty(i), sp = shortSpec(i), c = bcls(B.b), inC = cart.has(i.id);
+  const tag = i.promo ? `<span class="tag sale">Aksiya</span>`
+    : (i.qty !== null && i.qty <= 2 ? `<span class="tag">${i.qty === 1 ? "Oxirgi 1 ta" : i.qty + " ta qoldi"}</span>` : "");
+  const bt = (B.b !== null || w) ? `<div class="bt">${B.b !== null ? `<span class="bar ${c}"><i style="width:${B.b}%"></i></span><span class="${c}">${B.b}%</span>` : ""}${w ? `<span class="wr">${I.shield}${w} oy</span>` : ""}</div>` : "";
+  return `<div class="card" data-id="${esc(i.id)}">
+    <div class="ph ${P.stock && P.list.length ? "stock" : ""}">${imgTag(P.list)}
+      ${g ? `<span class="gr g${g}">${g}</span>` : ""}${tag}
+      <button class="add ${inC ? "in" : ""}" data-add="${esc(i.id)}" aria-label="${inC ? "Savatda" : "Savatga qo'shish"}">${inC ? I.check : I.plus}</button>
+    </div>
+    <div class="info">
+      <div class="nm">${esc(fixWords(i.name))}</div>
+      ${sp ? `<div class="sp">${esc(sp)}</div>` : ""}
+      ${bt}
+      <div class="pr ${i.promo ? "sale" : "gl"}">${money(cost(i), i.currency)}${i.promo ? `<s>${money(i.price, i.currency)}</s>` : ""}</div>
+      ${i.mac ? `<div class="mo">oyiga ${perMonth(i)} dan</div>` : ""}
+    </div></div>`;
 }
 function render() {
   const q = $("#q").value.trim().toLowerCase();
@@ -359,23 +581,11 @@ function render() {
     (!q || (i.name + " " + i.brand + " " + i.details.map(d => d.join(" ")).join(" ")).toLowerCase().includes(q)));
   $("#secTitle").textContent = cat === "Hammasi" ? "Barcha mahsulotlar" : catLabel(cat);
   $("#secCount").textContent = list.length ? `${list.length} ta` : "";
-  $("#grid").innerHTML = list.length ? list.map(i => {
-    const P = pics(i);
-    return `<div class="card" data-id="${esc(i.id)}">
-      <div class="ph ${P.stock && P.list.length ? "stock" : ""}">
-        ${imgTag(P.list)}
-        ${i.promo ? `<span class="tag">Aksiya</span>` : (i.qty !== null && i.qty <= 2 ? `<span class="tag">${i.qty} ta qoldi</span>` : "")}
-        <button class="add ${cart.has(i.id) ? "in" : ""}" data-add="${esc(i.id)}" aria-label="Savatga">${cart.has(i.id) ? I.check : I.plus}</button>
-      </div>
-      <div class="nm">${esc(i.name)}</div>
-      ${batt(i)}
-      <div class="pr">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
-      ${i.mac ? `<div class="mo">oyiga ${money(calc(cost(i), plan.max).monthly, i.currency)} dan</div>` : ""}
-    </div>`;
-  }).join("") : `<div class="msg">Hech narsa topilmadi</div>`;
+  $("#grid").innerHTML = list.length ? list.map(card).join("") : `<div class="msg">Hech narsa topilmadi</div>`;
+  renderHero();
 }
 function skeleton() {
-  $("#grid").innerHTML = Array(4).fill(`<div class="card sk"><div class="ph"></div><div class="l"></div><div class="l" style="width:50%"></div></div>`).join("");
+  $("#grid").innerHTML = Array(4).fill(`<div class="card sk"><div class="ph"></div><div class="l"></div><div class="l s"></div></div>`).join("");
 }
 function toggle(id) {
   cart.has(id) ? cart.delete(id) : cart.add(id);
@@ -384,7 +594,8 @@ function toggle(id) {
 
 /* ---- sahifalar ---- */
 function openPage(html, v) {
-  view = v; $("#page").innerHTML = html; $("#page").scrollTop = 0; $("#page").classList.add("open");
+  view = v; clearInterval(hTimer);
+  $("#page").innerHTML = html; $("#page").scrollTop = 0; $("#page").classList.add("open");
   if (inTg) tg.BackButton.show();
 }
 function closePage() {
@@ -392,63 +603,92 @@ function closePage() {
   if (inTg) tg.BackButton.hide();
   render(); refreshMain();
 }
-const SOON = `<div class="soon"><div class="soon-i">✨</div><div><b>Bo'lib to'lash tez orada</b>
+const SOON = `<div class="soon"><div class="pri">${I.cal}</div><div><b>Bo'lib to'lash tez orada</b>
   <span>Hozircha muddatli to'lov faqat MacBooklar uchun. Bu mahsulotga ham yaqinda qo'shamiz.</span></div></div>`;
 function itemPlan(i) {
   if (!i.mac) return SOON;
-  const c = calc(cost(i), itemM), cur = i.currency;
-  return `<div class="mch">${months().map(m => `<button class="m ${m === itemM ? "on" : ""}" data-im="${m}">${m}<small>oy</small></button>`).join("")}</div>
-    <div class="pl" style="padding-top:16px"><span>Boshlang'ich to'lov (${plan.down}%)</span><b>${money(c.down, cur)}</b></div>
-    <div class="pl hi"><span>Oyiga · ${itemM} oy</span><b>${money(c.monthly, cur)}</b></div>
-    ${plan.pct ? `<div class="pl"><span>Jami</span><b>${money(c.total, cur)}</b></div>` : ""}`;
+  const c = calc(cost(i), itemM), ms = months();
+  const mv = som(i, c.monthly);
+  return `<div class="hrow"><h2 class="h4">Bo'lib to'lash</h2><span class="hint">${plan.max} oygacha</span></div>
+    <div class="mch" style="--n:${Math.min(ms.length, 6)}">${ms.map(m => `<button class="m ${m === itemM ? "on" : ""}" data-im="${m}"><b>${m}</b><small>oy</small></button>`).join("")}</div>
+    <div class="monthly"><span class="disp gl">${somOK(i) ? mv.replace(" so'm", "") : mv}</span><span>${somOK(i) ? "so'm / oyiga" : "/ oyiga"} · ${itemM} oy</span></div>
+    <div class="pl"><span>Boshlang'ich to'lov (${plan.down}%)</span><b>${som(i, c.down)}</b></div>
+    ${plan.pct ? `<div class="pl"><span>Jami</span><b>${som(i, c.total)}</b></div>` : ""}
+    <p class="pnote">Muddatli to'lov faqat MacBooklarga. Menejerimiz bog'lanib, buyurtmani tasdiqlaydi.</p>`;
+}
+function gaugesHtml(i) {
+  const g = grade(i), B = battery(i), w = warranty(i), out = [];
+  if (g) out.push(`<div class="gauge"><span class="gv L ${g === "A" ? "LA" : ""}">${g}</span><span class="g1">${GRADE[g][0]} holat</span><span class="gs">Holat darajasi</span></div>`);
+  if (B.b !== null) {
+    const c = {ok: "#7EE0A6", mid: "#FFC266", low: "#FF8A80"}[bcls(B.b)], d = (150.8 * B.b / 100).toFixed(1);
+    out.push(`<div class="gauge"><span class="gv"><svg class="ring" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle cx="28" cy="28" r="24" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${d} 150.8"/></svg><b style="color:${c}">${B.b}%</b></span><span class="g1">Batareya</span><span class="gs">${B.c !== null ? B.c + " sikl" : "sog'ligi"}</span></div>`);
+  }
+  if (w) out.push(`<div class="gauge"><span class="gv S">${I.shieldL}</span><span class="g1">${w} oy kafolat</span><span class="gs">${w === 3 ? "M chipli MacBook" : "Intel MacBook"}</span></div>`);
+  return out.length ? `<div class="gauges" style="--c:${out.length}">${out.join("")}</div>` : "";
 }
 function openItem(id) {
   const i = byId(id); if (!i) return;
-  curId = id;
-  const P = pics(i);
-  const multi = !P.stock && P.list.length > 1;
+  curId = id; itemM = plan.max;
+  const P = pics(i), multi = !P.stock && P.list.length > 1, g = grade(i), w = warranty(i);
+  const lbl = !P.list.length ? "" : P.stock ? "Namunaviy rasm" : P.model ? "Shu model rasmi" : "Haqiqiy rasm";
+  const c = i.mac ? calc(cost(i), plan.max) : null;
   openPage(`
-    <div class="pv ${P.stock && P.list.length ? "stock" : ""}">
-      <button class="ib" data-close style="left:16px" aria-label="Orqaga">${I.back}</button>
+    <div class="pv ${P.stock && P.list.length ? "stock" : ""} ${inTg ? "" : "hasback"}">
+      ${inTg ? "" : `<button class="ib" data-close aria-label="Orqaga">${I.back}</button>`}
       ${P.list.length ? `<div class="gal" id="gal">${P.stock ? imgTag(P.list) : P.list.map(u => `<img src="${esc(u)}" alt="">`).join("")}</div>` : ICON}
-      ${multi ? `<div class="dots">${P.list.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
-      ${P.stock && P.list.length ? `<div class="demo">Namunaviy rasm${/wikimedia/.test(P.list[0]) ? " (Wikimedia Commons)" : ""} · haqiqiy holatini menejerdan so'rang</div>`
-        : P.model ? `<div class="demo mp">Shu modelning rasmi · aniq holatini menejerdan so'rang</div>` : ""}
+      ${lbl ? `<span class="pb l">${I.camera}${lbl}</span>` : ""}
+      ${multi ? `<span class="pb r" id="pcount">1 / ${P.list.length}</span><div class="dots">${P.list.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
     </div>
     <div class="body">
-      <div class="hd">
-        <h3>${esc(i.name)}</h3>
-        <div class="pr">${money(cost(i), i.currency)}${i.promo ? `<small>${money(i.price, i.currency)}</small>` : ""}</div>
-      </div>
-      ${batt(i)}
-      ${uzs(i)}
-      ${i.qty !== null && i.qty <= 2 ? `<div class="qleft">Atigi ${i.qty} ta qoldi</div>` : ""}
-      <div class="blk"><h4>Bo'lib to'lash</h4><div id="iplan" data-id="${esc(i.id)}">${itemPlan(i)}</div></div>
-      <div class="blk"><h4>Xususiyatlari</h4>
+      <h1 class="ttl disp gl">${esc(fixWords(i.name))}</h1>
+      ${shortSpec(i) ? `<p class="subt">${esc(shortSpec(i))}</p>` : ""}
+      <section class="box">
+        <div class="lbl">Narxi</div>
+        <div class="big disp gl">${som(i, cost(i))}</div>
+        ${i.promo ? `<div class="old">${som(i, i.price)}</div>` : ""}
+        ${c ? `<div class="hr"></div><div class="hrow mrow"><b>oyiga ${som(i, c.monthly)}${somOK(i) ? "dan" : " dan"}</b><span class="mchip">${plan.max} oy</span></div>` : ""}
+        ${somOK(i) ? `<div class="rate">${money(cost(i), i.currency)} · 1$ = ${sp3(usdUzs)} so'm${rateDate ? ", " + esc(rateDate) : ""}</div>` : ""}
+        ${i.qty !== null && i.qty <= 2 ? `<div class="qleft">${i.qty === 1 ? "Oxirgi 1 ta qoldi" : "Atigi " + i.qty + " ta qoldi"}</div>` : ""}
+      </section>
+      ${gaugesHtml(i)}
+      ${g ? `<section class="box">
+        <div class="hrow"><h2 class="h4">Holati</h2><span class="mchip">${g} · ${GRADE[g][0]}</span></div>
+        <div class="meter">${["D", "C", "B", "A"].map((L, k) => `<div><i class="${k < LEVEL[g] ? "on" : ""}"></i><span class="${L === g ? "on" : ""}">${L} · ${GRADE[L][0]}</span></div>`).join("")}</div>
+        <p class="gtext">${GRADE[g][1]}</p></section>` : ""}
+      <section class="box" id="iplan" data-id="${esc(i.id)}">${itemPlan(i)}</section>
+      <section class="box" style="padding:14px 16px 4px"><h2 class="h4">Xususiyatlari</h2><div style="margin-top:4px">
         ${i.brand ? `<div class="row"><span>Brend</span><span>${esc(i.brand)}</span></div>` : ""}
-        ${i.details.map(d => `<div class="row"><span>${esc(d[0])}</span><span>${esc(d[1])}</span></div>`).join("")}
+        ${i.details.map(d => `<div class="row"><span>${esc(d[0])}</span><span>${esc(fixWords(d[1]))}</span></div>`).join("")}
         ${i.qty !== null ? `<div class="row"><span>Mavjud</span><span>${i.qty} ta</span></div>` : ""}
-      </div>
+      </div></section>
+      <section class="box" style="padding:6px 16px">
+        ${w ? `<div class="prm"><span class="pri">${I.shieldL}</span><span><b>Kafolat ${w} oy</b><span>M chipli MacBooklarga 3 oy, Intel — 1 oy</span></span></div>` : ""}
+        ${i.mac ? `<div class="prm"><span class="pri">${I.cal}</span><span><b>${plan.max} oygacha bo'lib to'lash</b><span>Faqat MacBooklarga</span></span></div>` : ""}
+        <div class="prm"><span class="pri">${I.truck}</span><span><b>O'zbekiston bo'ylab yetkazib berish</b><span>Narxi manzilga qarab</span></span></div>
+      </section>
+      ${hasSecondary ? "" : `<button class="ask" data-ask>${I.chat}Savol berish</button>`}
     </div>`, "item");
-  const g = $("#gal");
-  if (g && multi) g.addEventListener("scroll", () => {
-    const k = Math.round(g.scrollLeft / g.clientWidth);
-    document.querySelectorAll(".dots i").forEach((d, n) => d.classList.toggle("on", n === k));
+  const gal = $("#gal");
+  if (gal && multi) gal.addEventListener("scroll", () => {
+    const k = Math.round(gal.scrollLeft / gal.clientWidth);
+    $$(".dots i").forEach((d, n) => d.classList.toggle("on", n === k));
+    const pc = $("#pcount"); if (pc) pc.textContent = `${k + 1} / ${P.list.length}`;
   }, {passive: true});
   refreshMain();
 }
 function cartPlan(list) {
   const macs = list.filter(i => i.mac), other = list.filter(i => !i.mac);
   if (!macs.length) { payM = 0; return SOON; }
-  let h = `<div class="seg">
+  let h = `<h2 class="h4">To'lov turi</h2><div class="seg">
     <button class="${payM ? "" : "on"}" data-pm="0">To'liq to'lash</button>
     <button class="${payM ? "on" : ""}" data-pm="${payM || plan.max}">Bo'lib to'lash</button></div>`;
   if (payM) {
-    h += `<div class="mch">${months().map(m => `<button class="m ${m === payM ? "on" : ""}" data-pm="${m}">${m}<small>oy</small></button>`).join("")}</div>
-      <div class="pl" style="padding-top:16px"><span>Boshlang'ich to'lov${other.length ? "" : ` (${plan.down}%)`}</span><b>${sumBy(list, i => i.mac ? calc(cost(i), payM).down : cost(i))}</b></div>
-      <div class="pl hi"><span>Oyiga · ${payM} oy</span><b>${sumBy(macs, i => calc(cost(i), payM).monthly)}</b></div>
+    const ms = months();
+    h += `<div class="mch" style="--n:${Math.min(ms.length, 6)}">${ms.map(m => `<button class="m ${m === payM ? "on" : ""}" data-pm="${m}"><b>${m}</b><small>oy</small></button>`).join("")}</div>
+      <div class="pl" style="margin-top:16px"><span>Boshlang'ich to'lov${other.length ? "" : ` (${plan.down}%)`}</span><b>${sumBy(list, i => i.mac ? calc(cost(i), payM).down : cost(i))}</b></div>
+      <div class="pl"><span>Oyiga · ${payM} oy</span><b class="disp gl" style="font-size:17px">${sumBy(macs, i => calc(cost(i), payM).monthly)}</b></div>
       ${plan.pct ? `<div class="pl"><span>Bo'lib to'lashda jami</span><b>${sumBy(list, i => i.mac ? calc(cost(i), payM).total : cost(i))}</b></div>` : ""}
-      ${other.length ? `<div class="pnote">✨ Muddatli to'lov faqat MacBooklarga. Boshqa mahsulotlar boshlang'ich to'lov bilan birga to'liq to'lanadi.</div>` : ""}`;
+      ${other.length ? `<div class="pnote">Muddatli to'lov faqat MacBooklarga. Boshqa mahsulotlar boshlang'ich to'lov bilan birga to'liq to'lanadi.</div>` : ""}`;
   }
   return h;
 }
@@ -457,14 +697,14 @@ function openCart() {
   if (!list.length) { if (view) closePage(); return; }
   const tel = $("#tel") ? $("#tel").value : "";
   openPage(`
-    <div class="ct"><button class="ib" data-close aria-label="Orqaga">${I.back}</button><h3>Savatingiz</h3><span></span></div>
+    <div class="ct">${inTg ? "<span></span>" : `<button class="ib" data-close aria-label="Orqaga">${I.back}</button>`}<h3>Savatingiz</h3><span></span></div>
     <div class="items">${list.map(i => { const P = pics(i); return `<div class="ci2">
       <div class="th ${P.stock && P.list.length ? "stock" : ""}">${imgTag(P.list)}</div>
-      <div class="in"><div class="t"><b>${esc(i.name)}</b><button class="rm" data-rm="${esc(i.id)}" aria-label="O'chirish">${I.x}</button></div>
-        <div class="p">${money(cost(i), i.currency)}</div><div class="s">${esc(specs(i))}</div></div></div>`; }).join("")}</div>
+      <div class="in"><div class="t"><b>${esc(fixWords(i.name))}</b><button class="rm" data-rm="${esc(i.id)}" aria-label="O'chirish">${I.x}</button></div>
+        <div class="p gl">${money(cost(i), i.currency)}</div><div class="s">${esc(shortSpec(i))}</div></div></div>`; }).join("")}</div>
     <div class="sum">
-      <div class="sr big"><span style="color:var(--tx)">Jami · ${list.length} ta mahsulot</span><b>${totalStr(list)}</b></div>
-      <div class="blk" style="margin-top:4px"><h4>To'lov turi</h4><div id="cplan">${cartPlan(list)}</div></div>
+      <div class="sr"><span style="color:var(--tx2)">Jami · ${list.length} ta mahsulot</span><b class="gl">${totalStr(list)}</b></div>
+      <section class="box" id="cplan">${cartPlan(list)}</section>
       <div id="phoneBox">${phoneBlock(tel)}</div>
       <div class="note">Menejerimiz siz bilan bog'lanib, buyurtmani tasdiqlaydi.</div>
     </div>`, "cart");
@@ -515,6 +755,45 @@ async function submit() {
   } finally { tg.MainButton.hideProgress(); }
 }
 
+/* ---- kirish animatsiyasi ---- */
+function intro() {
+  const mode = document.documentElement.getAttribute("data-intro");
+  if (!mode) return;
+  const T = 9.2, D = mode === "full" ? 0 : 5.4;          // qisqa variant: oxirgi 3,8 soniya
+  const done = () => { document.documentElement.removeAttribute("data-intro"); const o = $(".xin"); if (o) o.remove(); if (hero.length && !view) setHero(0); };
+  const ov = document.createElement("div");
+  ov.className = "xin"; ov.style.setProperty("--d", -D + "s"); ov.style.animationPlayState = "paused";
+  document.body.appendChild(ov);
+  const files = (mode === "full" ? ["lid.png", "base.png", "noise.png"] : []).concat(["logo-nodot.png", "logo-dot.png"]);
+  const load = src => new Promise(r => { const im = new Image(); im.onload = im.onerror = r; im.src = "intro/" + src; });
+  const css = new Promise(r => { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "intro/intro.css?v=1"; l.onload = r; l.onerror = r; document.head.appendChild(l); });
+  const giveUp = setTimeout(done, 3500);                 // internet sekin bo'lsa — animatsiyasiz ochiladi
+  Promise.all([css, ...files.map(load)]).then(() => {
+    clearTimeout(giveUp);
+    if (!document.body.contains(ov)) return;
+    const s = Math.min(innerWidth / 390, innerHeight / 760);
+    const L = ["m", "a", "g", "i", "c", "p"];
+    ov.innerHTML = `<div class="xst" style="--s:${s.toFixed(3)}">
+      ${mode === "full" ? `<div class="xzoom"><div class="xline"></div><div class="xpersp"><div class="xcam">
+        <div class="xdeck"><div class="xkb"></div><div class="xtp"></div></div>
+        <img class="xfront" src="intro/base.png" alt="">
+        <div class="xlid"><img class="xlidf" src="intro/lid.png" alt="">
+          <div class="xscr"><div class="xcrt"></div><div class="xstatic"><div class="xnz"></div><div class="xnz2"></div><div class="xtear xt1"></div><div class="xtear xt2"></div><div class="xtear xt3"></div><div class="xroll"></div><div class="xscan"></div></div><div class="xcdot"></div></div>
+          <div class="xlidb"></div></div></div></div></div>` : ""}
+      <div class="xlk"><div class="xglow"></div>
+        ${L.map(k => `<img class="xpc xpc-${k}" src="intro/logo-nodot.png" alt="">`).join("")}
+        ${L.map(k => `<svg class="xspk xsp-${k}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/></svg>`).join("")}
+        <div class="xshine"></div>
+        ${[..."UZMACBOOK"].map((ch, k) => `<span class="xrl xr${k}">${ch}</span>`).join("")}
+        <div class="xring"></div>${[0, 1, 2, 3, 4, 5, 6, 7].map(n => `<span class="xpt xpt${n}"></span>`).join("")}
+        <img class="xdot" src="intro/logo-dot.png" alt="">
+      </div></div><div class="xskip">O'tkazib yuborish</div>`;
+    ov.style.animationPlayState = "";
+    const end = setTimeout(done, (T - D) * 1000 + 80);
+    ov.addEventListener("click", () => { clearTimeout(end); ov.classList.add("out"); setTimeout(done, 260); haptic("light"); }, {once: true});
+  });
+}
+
 /* ---- hodisalar ---- */
 $("#q").addEventListener("input", render);
 $("#cartBtn").addEventListener("click", openCart);
@@ -527,8 +806,22 @@ $("#grid").addEventListener("click", e => {
   if (a) { e.stopPropagation(); return toggle(a.dataset.add); }
   const card = e.target.closest(".card"); if (card && card.dataset.id) openItem(card.dataset.id);
 });
+let hx = null, swiped = false;
+$("#hero").addEventListener("touchstart", e => { hx = e.touches[0].clientX; swiped = false; }, {passive: true});
+$("#hero").addEventListener("touchend", e => {
+  if (hx === null) return;
+  const dx = e.changedTouches[0].clientX - hx; hx = null;
+  if (Math.abs(dx) > 40) { swiped = true; haptic("soft"); setHero(hi + (dx < 0 ? 1 : -1)); }
+}, {passive: true});
+$("#hero").addEventListener("click", e => {
+  if (swiped) { swiped = false; return; }
+  const b = e.target.closest("[data-hb]");
+  if (b) { haptic("soft"); return setHero(+b.dataset.hb); }
+  const o = e.target.closest("[data-open]"); if (o) openItem(o.dataset.open);
+});
 $("#page").addEventListener("click", e => {
   if (e.target.closest("[data-close]")) return closePage();
+  if (e.target.closest("[data-ask]")) return askManager();
   const im = e.target.closest("[data-im]");
   if (im) { itemM = +im.dataset.im; haptic("soft"); $("#iplan").innerHTML = itemPlan(byId($("#iplan").dataset.id)); return; }
   const pm = e.target.closest("[data-pm]");
@@ -539,14 +832,15 @@ $("#page").addEventListener("click", e => {
 });
 if (inTg) tg.BackButton.onClick(closePage);
 
+intro();
 skeleton();
 if (canContact) fetch("api/me", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({initData: tg.initData})})
   .then(r => r.json()).then(d => { if (d.phone) { myPhone = d.phone; phoneShared = true; } }).catch(() => {});
 fetch("api/products").then(r => r.json()).then(d => {
   items = d.items || [];
-  if (d.plan) { plan = d.plan; itemM = plan.max; $("#heroPill").textContent = `Bo'lib to'lash · ${plan.max} oygacha`; }
-  usdUzs = d.usd_uzs || null; rateDate = d.rate_date || "";
-  $("#sub").textContent = items.length ? `${items.length} ta model · narxlar real vaqtda` : "Hozircha tovar yo'q";
+  if (d.plan) { plan = d.plan; itemM = plan.max; $("#ppPlan").textContent = `${plan.max} oy bo'lib`; }
+  usdUzs = d.usd_uzs || null; rateDate = d.rate_date || ""; contact = d.contact || "";
+  hero = pickHero();
   renderCats(); render(); refreshMain();
 }).catch(() => { $("#grid").innerHTML = `<div class="msg">Yuklab bo'lmadi. Qayta oching.</div>`; });
 </script>
