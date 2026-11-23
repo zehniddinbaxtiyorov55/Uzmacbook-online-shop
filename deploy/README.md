@@ -23,3 +23,19 @@ Skript so'raydi: BOT_TOKEN, BILLZ_SECRET_KEY, ADMIN_CHAT_ID, CASHBACK_API/KEY, R
 Bot Telegram webhook'ini faqat `https://shop.magicpro.uz` haqiqatan ishlaganda o'ziga o'tkazadi,
 shuning uchun DNS tayyor bo'lguncha eski server ishlashda davom etadi. O'tgandan keyin Render'dagi
 eski servisni **Suspend** qiling, aks holda u qayta yonganda webhook'ni o'ziga qaytarib oladi.
+
+## AI chat-bot (Telegram Business + Gemini)
+
+Kod yopiq repoda (`Uzmacbook-chat-bot-uchun-`, `server` branch). Serverda (root):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zehniddinbaxtiyorov55/Uzmacbook-online-shop/server/deploy/install-ai.sh -o install-ai.sh && bash install-ai.sh
+```
+
+Skript GitHub uchun "deploy key" chiqaradi — uni repo → Settings → Deploy keys ga bir marta qo'shasiz.
+So'ng BOT_TOKEN, GEMINI_API_KEY (Render → uzmacbook-ai-bot → Environment) so'raladi. Polling rejimi — domen kerak emas.
+O'rnatgach Render'dagi `uzmacbook-ai-bot` ni **Suspend** qiling.
+
+- Sozlamalar: `/opt/aibot/.env` → `systemctl restart aibot`
+- Loglar: `journalctl -u aibot -f`
+- Yangilash: `bash /opt/aibot-install.sh`
