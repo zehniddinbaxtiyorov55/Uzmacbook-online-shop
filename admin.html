@@ -201,6 +201,27 @@ tr:last-child td{border-bottom:0}
   .prod .sw{grid-row:1;grid-column:3}
   .tools .in{max-width:none;flex:1;min-width:160px}
 }
+/* ---- model rasmlari ---- */
+.mhelp{font-size:13px;color:var(--tx2);line-height:1.55}
+.mhelp b{color:var(--tx)}
+.mg{padding:16px}
+.mg .mh{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.mg .nm{font-weight:650;font-size:15px}
+.mg .ct{font-size:12px;color:var(--tx3);margin-top:2px}
+.mown{font-size:12px;color:var(--orange);margin-top:4px}
+.mstrip{display:flex;gap:10px;flex-wrap:wrap}
+.mth,.madd{position:relative;width:96px;height:96px;border-radius:12px;overflow:hidden;background:var(--soft);flex:none}
+.mth img{width:100%;height:100%;object-fit:cover;display:block}
+.mmain{position:absolute;left:6px;bottom:6px;font-size:10px;font-weight:700;background:var(--ink);color:var(--ink-tx);padding:2px 7px;border-radius:8px}
+.mbtn{position:absolute;top:6px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:13px;line-height:26px;padding:0;cursor:pointer}
+.mdel{right:6px}
+.mstar{left:6px}
+.madd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1.5px dashed var(--line);background:transparent;cursor:pointer;color:var(--tx2)}
+.madd span{font-size:26px;line-height:1}
+.madd small{font-size:11px}
+.madd:hover{border-color:var(--blue);color:var(--blue)}
+.madd.busy{opacity:.5;pointer-events:none}
+@media (max-width:640px){.mth,.madd{width:84px;height:84px}.mg .mh{flex-direction:column}}
 </style>
 </head>
 <body>
@@ -227,6 +248,7 @@ tr:last-child td{border-bottom:0}
       <a href="#users" data-v="users"><span class="ico">👥</span>Mijozlar</a>
       <a href="#broadcast" data-v="broadcast"><span class="ico">📣</span>Xabar yuborish</a>
       <a href="#products" data-v="products"><span class="ico">💻</span>Tovarlar</a>
+      <a href="#models" data-v="models"><span class="ico">📸</span>Model rasmlari</a>
       <a href="#settings" data-v="settings"><span class="ico">⚙️</span>Matn va sozlamalar</a>
     </nav>
     <div class="foot">
@@ -249,7 +271,7 @@ const view = $("#view");
 const TZ = "Asia/Tashkent";
 const STATUS = {new: "Yangi", contacted: "Bog'lanildi", sold: "Sotildi", cancelled: "Bekor"};
 const TITLES = {dashboard: "Bosh sahifa", orders: "Buyurtmalar", users: "Mijozlar", broadcast: "Xabar yuborish",
-                products: "Tovarlar", settings: "Matn va sozlamalar"};
+                products: "Tovarlar", models: "Model rasmlari", settings: "Matn va sozlamalar"};
 let current = "", timer = null;
 
 function esc(s) {
@@ -627,7 +649,7 @@ async function products(refresh) {
     <span class="muted" id="psum"></span>
   </div>
   <div class="card" style="padding:8px 16px"><div id="plist"></div></div>
-  <div class="muted" style="font-size:12px">Tovarlar, narx va qoldiq Billz'dan har 2 daqiqada avtomatik yangilanadi. Yashirilgan tovar Mini App'da ko'rinmaydi va unga buyurtma berib bo'lmaydi.</div>`;
+  <div class="muted" style="font-size:12px">Tovarlar, narx va qoldiq Billz'dan har 2 daqiqada avtomatik yangilanadi. Yashirilgan tovar Mini App'da ko'rinmaydi va unga buyurtma berib bo'lmaydi. Rasmlar — <a href="#models">📸 Model rasmlari</a> bo'limida.</div>`;
   $("#pq").oninput = e => { pst.q = e.target.value.trim().toLowerCase(); renderProducts(); };
   $("#pc").onchange = e => { pst.cat = e.target.value; renderProducts(); };
   $("#ponly").onclick = () => { pst.only = !pst.only; $("#ponly").classList.toggle("on", pst.only); renderProducts(); };
@@ -652,6 +674,119 @@ function renderProducts() {
       renderProducts();
     } catch (e) { cb.checked = !cb.checked; toast(e.message, true); }
   });
+}
+
+// ---------- model rasmlari ----------
+const mst = {q: "", f: "", groups: [], max: 8};
+async function models() {
+  const d = await api("models");
+  mst.groups = d.groups;
+  mst.max = d.max;
+  view.innerHTML = `
+  <div class="card mhelp">Tovarlar Billz'dagi <b>Model, Chip, Ekran va Rang</b> bo'yicha guruhlangan.
+    Guruhga rasm yuklasangiz, shu guruhdagi <b>hamma tovarga</b> (keyin keladiganlariga ham) avtomatik qo'yiladi.
+    Tovarning Billz'da o'z rasmi bo'lsa, o'shasi ko'rsatiladi. Birinchi rasm — <b>asosiy</b>, katalogda shu ko'rinadi (★ bilan almashtirasiz).
+    Tovar noto'g'ri guruhga tushsa, Billz'da uning Model/Chip/Ekran/Rang maydonlarini to'g'rilang.</div>
+  <div class="tools">
+    <input class="in" id="mq" placeholder="Qidirish: Air M2, Space Gray…" value="${esc(mst.q)}">
+    ${[["", "Hammasi"], ["none", "Rasmsiz"], ["mac", "MacBook"], ["other", "Boshqa tovarlar"]]
+      .map(([k, l]) => `<button class="chip${mst.f === k ? " on" : ""}" data-f="${k}">${l}</button>`).join("")}
+    <span class="muted" id="msum"></span>
+  </div>
+  <div id="mlist"></div>`;
+  $("#mq").oninput = e => { mst.q = e.target.value.trim().toLowerCase(); renderModels(); };
+  view.querySelectorAll(".tools .chip").forEach(b => b.onclick = () => {
+    mst.f = b.dataset.f;
+    view.querySelectorAll(".tools .chip").forEach(x => x.classList.toggle("on", x === b));
+    renderModels();
+  });
+  const L = $("#mlist");
+  L.onclick = async e => {
+    const card = e.target.closest(".mg"); if (!card) return;
+    const g = mst.groups.find(x => x.key === card.dataset.key); if (!g) return;
+    const del = e.target.closest("[data-del]"), main = e.target.closest("[data-main]");
+    if (!del && !main) return;
+    if (del && !confirm("Rasm o'chirilsinmi?")) return;
+    try {
+      const r = await api(`models/${encodeURIComponent(g.key)}/${del ? "delete" : "main"}`,
+                          {body: {file: (del || main).dataset[del ? "del" : "main"]}});
+      g.photos = r.group.photos;
+      renderModels();
+      toast(del ? "Rasm o'chirildi" : "Asosiy rasm almashtirildi");
+    } catch (err) { toast(err.message, true); }
+  };
+  L.onchange = e => {
+    const inp = e.target.closest("input[data-up]"); if (!inp || !inp.files.length) return;
+    uploadModel(inp.dataset.up, [...inp.files], inp.closest(".madd"));
+  };
+  renderModels();
+}
+function renderModels() {
+  const q = mst.q;
+  const list = mst.groups.filter(g => (!q || (g.label + " " + g.names.join(" ")).toLowerCase().includes(q)) &&
+    (mst.f !== "none" || !g.photos.length) && (mst.f !== "mac" || g.mac) && (mst.f !== "other" || !g.mac));
+  const withP = mst.groups.filter(g => g.photos.length).length;
+  $("#msum").textContent = `${mst.groups.length} ta guruh · ${withP} tasida rasm bor`;
+  $("#mlist").innerHTML = list.length ? list.map(modelCard).join("")
+    : `<div class="card"><div class="empty">${mst.groups.length ? "Topilmadi" : "Tovarlar hali yuklanmadi — sahifani biroz keyin yangilang"}</div></div>`;
+}
+function modelCard(g) {
+  const sub = g.count ? `${g.count} ta tovar sotuvda · ${g.names.map(esc).join(", ")}` : "Hozir sotuvda yo'q — rasmlar saqlanib turadi";
+  const own = g.own ? `<div class="mown">${g.own} ta tovarning Billz'da o'z rasmi bor — ularda o'sha rasm ko'rinadi</div>` : "";
+  const now = g.photos.length ? '<span class="pill st-sold">Sizning rasmingiz</span>'
+    : `<span class="pill st-cancelled">Hozir: ${g.sample ? "namunaviy rasm" : "rasm yo'q"}</span>`;
+  return `<div class="card mg" data-key="${esc(g.key)}">
+    <div class="mh"><div><div class="nm">${esc(g.label)}</div><div class="ct">${sub}</div>${own}</div>${now}</div>
+    <div class="mstrip">
+      ${g.photos.map((p, k) => `<div class="mth"><img src="${esc(p.url)}" alt="" loading="lazy">
+        ${k === 0 ? '<span class="mmain">Asosiy</span>' : `<button class="mbtn mstar" data-main="${esc(p.file)}" title="Asosiy qilish" aria-label="Asosiy qilish">★</button>`}
+        <button class="mbtn mdel" data-del="${esc(p.file)}" title="O'chirish" aria-label="O'chirish">✕</button></div>`).join("")}
+      ${g.photos.length < mst.max ? `<label class="madd"><input type="file" accept="image/*" multiple hidden data-up="${esc(g.key)}">
+        <span>＋</span><small>Rasm qo'shish</small></label>` : ""}
+    </div>
+  </div>`;
+}
+async function shrink(file) {
+  // Telefon rasmlari 3–8 MB: 1600 px gacha kichraytirib JPEG qilamiz — Mini App tez ochiladi
+  let src;
+  try { src = await createImageBitmap(file, {imageOrientation: "from-image"}); }
+  catch (e) {
+    src = await new Promise((ok, no) => {
+      const im = new Image();
+      im.onload = () => ok(im);
+      im.onerror = () => no(new Error(`«${file.name}» ochilmadi. iPhone rasmi (HEIC) bo'lsa, JPG qilib saqlab yuklang.`));
+      im.src = URL.createObjectURL(file);
+    });
+  }
+  const w = src.width, h = src.height, k = Math.min(1, 1600 / Math.max(w, h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const cx = c.getContext("2d");
+  cx.fillStyle = "#fff"; cx.fillRect(0, 0, c.width, c.height);
+  cx.drawImage(src, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.86));
+  if (!blob) throw new Error(`«${file.name}» ni o'qib bo'lmadi`);
+  return blob;
+}
+async function uploadModel(key, files, box) {
+  const g = mst.groups.find(x => x.key === key); if (!g) return;
+  const room = mst.max - g.photos.length, list = files.slice(0, room);
+  if (files.length > room) toast(`Bitta guruhga ko'pi bilan ${mst.max} ta rasm — ${room} tasi yuklanadi`, true);
+  if (box) box.classList.add("busy");
+  let done = 0;
+  for (const f of list) {
+    toast(`Yuklanmoqda… ${done + 1} / ${list.length}`);
+    try {
+      const fd = new FormData();
+      fd.append("photo", await shrink(f), "photo.jpg");
+      fd.append("label", g.label);
+      const r = await api(`models/${encodeURIComponent(key)}/upload`, {method: "POST", body: fd});
+      g.photos = r.group.photos;
+      done++;
+    } catch (err) { toast(err.message, true); }
+  }
+  renderModels();
+  if (done) toast(`${done} ta rasm qo'shildi — Mini App'da darhol ko'rinadi`);
 }
 
 // ---------- sozlamalar ----------
@@ -692,7 +827,7 @@ async function settings() {
   };
 }
 
-const VIEWS = {dashboard, orders, users, broadcast, products, settings};
+const VIEWS = {dashboard, orders, users, broadcast, products, models, settings};
 start();
 </script>
 </body>

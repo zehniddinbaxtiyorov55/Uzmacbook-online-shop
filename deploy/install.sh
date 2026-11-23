@@ -4,14 +4,20 @@
 # Serverda (root) bitta buyruq:
 #   curl -fsSL https://raw.githubusercontent.com/zehniddinbaxtiyorov55/Uzmacbook-online-shop/server/deploy/install.sh -o install.sh && bash install.sh
 #
-# Qayta ishga tushirish xavfsiz: kodni yangilaydi, .env va bazaga tegmaydi.
+# Qayta ishga tushirish xavfsiz: kodni yangilaydi, .env, baza va rasmlarga tegmaydi.
 # Kodni yangilash uchun keyinchalik:  bash /opt/onlineshop/deploy/install.sh
+# (manzillar .env dagi WEBAPP_URL / ADMIN_HOST dan olinadi).
+#
+# Manzilni almashtirish (masalan DuckDNS dan o'z domeningizga):
+#   SHOP_DOMAIN=bot.magicpro.uz ADMIN_DOMAIN=admin.magicpro.uz bash /opt/onlineshop/deploy/install.sh
 set -euo pipefail
 
 REPO="${REPO:-https://github.com/zehniddinbaxtiyorov55/Uzmacbook-online-shop.git}"
 BRANCH="${BRANCH:-server}"
-SHOP_DOMAIN="${SHOP_DOMAIN:-shop.magicpro.uz}"
-ADMIN_DOMAIN="${ADMIN_DOMAIN:-admin.magicpro.uz}"
+SHOP_DOMAIN_ARG="${SHOP_DOMAIN:-}"    # aniq berilsa — shu manzil (.env ham yangilanadi)
+ADMIN_DOMAIN_ARG="${ADMIN_DOMAIN:-}"  # berilmasa — .env dagisi, u ham bo'lmasa standart
+SHOP_DOMAIN=""
+ADMIN_DOMAIN=""
 DIR=/opt/onlineshop
 DATA=/var/lib/onlineshop
 SVC=onlineshop
@@ -35,6 +41,15 @@ ask() {  # ask O'ZGARUVCHI "Savol" [standart] [req]
 
 main() {
   [ "$(id -u)" -eq 0 ] || die "Root bo'lib ishga tushiring:  sudo bash install.sh"
+
+  # Manzillar: argument > mavjud .env > standart
+  local cur_shop="" cur_admin=""
+  if [ -f "$DIR/.env" ]; then
+    cur_shop="$(grep -m1 '^WEBAPP_URL=' "$DIR/.env" | cut -d= -f2- | sed -E 's#^https?://##; s#/.*$##' || true)"
+    cur_admin="$(grep -m1 '^ADMIN_HOST=' "$DIR/.env" | cut -d= -f2- || true)"
+  fi
+  SHOP_DOMAIN="${SHOP_DOMAIN_ARG:-${cur_shop:-shop.magicpro.uz}}"
+  ADMIN_DOMAIN="${ADMIN_DOMAIN_ARG:-${cur_admin:-admin.magicpro.uz}}"
   . /etc/os-release
   [ "${ID:-}" = ubuntu ] || [ "${ID:-}" = debian ] || warn "Skript Ubuntu uchun yozilgan (sizda: ${PRETTY_NAME:-?})"
   export DEBIAN_FRONTEND=noninteractive
@@ -138,6 +153,16 @@ EOF
     umask 022
   else
     say "5/7 Sozlamalar: $ENVF allaqachon bor — tegilmadi"
+    if [ "$cur_shop" != "$SHOP_DOMAIN" ]; then
+      if grep -q '^WEBAPP_URL=' "$ENVF"; then sed -i "s#^WEBAPP_URL=.*#WEBAPP_URL=https://$SHOP_DOMAIN/#" "$ENVF"
+      else echo "WEBAPP_URL=https://$SHOP_DOMAIN/" >> "$ENVF"; fi
+      ok "Mini App manzili yangilandi: https://$SHOP_DOMAIN/"
+    fi
+    if [ "$cur_admin" != "$ADMIN_DOMAIN" ]; then
+      if grep -q '^ADMIN_HOST=' "$ENVF"; then sed -i "s#^ADMIN_HOST=.*#ADMIN_HOST=$ADMIN_DOMAIN#" "$ENVF"
+      else echo "ADMIN_HOST=$ADMIN_DOMAIN" >> "$ENVF"; fi
+      ok "Admin panel manzili yangilandi: https://$ADMIN_DOMAIN"
+    fi
   fi
   chown "root:$RUN_USER" "$ENVF"
   chmod 640 "$ENVF"

@@ -6,6 +6,7 @@ from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 from stock_photos import stock_photos
 import db
+import model_photos
 import settings
 
 log = logging.getLogger("BOT")
@@ -200,6 +201,7 @@ def to_item(p):
         if a.get("attribute_value"):
             details.append([str(a.get("attribute_name") or ""), str(a["attribute_value"])])
     cats = [c["name"] for c in p.get("categories") or [] if c.get("name")]
+    mkey, mlabel = model_photos.key_of(name, details, cats[-1] if cats else "")
     return {
         "id": str(p.get("id") or p.get("sku") or name),
         "name": name,
@@ -210,6 +212,7 @@ def to_item(p):
         "photos": photos_of(p),
         "stock": stock_photos(name, details, cats[-1] if cats else ""),
         "mac": is_mac(name, cats[-1] if cats else "", details),
+        "mkey": mkey, "mlabel": mlabel,
         "details": details[:12],
     }
 
@@ -267,13 +270,23 @@ async def photos_info(_):
     """Tekshiruv: har bir tovarga qaysi rasm qo'yilgani."""
     rows = []
     for i in await load():
-        src = "billz" if i["photos"] else ("apple" if i["stock"] else "yo'q")
-        url = (i["photos"] or i["stock"] or [""])[0]
+        mp = model_photos.urls(i.get("mkey") or "")
+        src = "billz" if i["photos"] else ("model" if mp else ("apple" if i["stock"] else "yo'q"))
+        url = (i["photos"] or mp or i["stock"] or [""])[0]
         rows.append({"nom": i["name"], "kategoriya": i["category"], "rasm": src,
+                     "guruh": i.get("mlabel") or "",
                      "fayl": url.rsplit("/", 1)[-1] if src == "apple" else url[:80]})
     rows.sort(key=lambda r: (r["rasm"], r["kategoriya"], r["nom"]))
     return web.json_response({"jami": len(rows), "tovarlar": rows},
                              dumps=lambda o: json.dumps(o, ensure_ascii=False, indent=1))
+
+
+async def model_photo(req):
+    """Admin paneldan yuklangan model rasmlari. Fayl nomi har safar yangi — abadiy keshlanadi."""
+    p = model_photos.path(req.match_info["key"], req.match_info["name"])
+    if not p:
+        raise web.HTTPNotFound()
+    return web.FileResponse(p, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 async def me(req):
@@ -306,7 +319,8 @@ async def products(_):
         except Exception:
             pass
         rate, rdate = usd_rate()
-    return web.json_response({"items": visible(await load()), "plan": plan(), "usd_uzs": rate,
+    items = [dict(i, mphotos=model_photos.urls(i.get("mkey") or "")) for i in visible(await load())]
+    return web.json_response({"items": items, "plan": plan(), "usd_uzs": rate,
                               "rate_date": rdate},
                              headers={"Cache-Control": "no-store"})
 
@@ -406,6 +420,7 @@ def make_app(bot, billz_products, num):
     app.router.add_get("/logo.png", logo)
     app.router.add_get("/api/rate", rate_info)
     app.router.add_get("/api/photos", photos_info)
+    app.router.add_get("/mp/{key}/{name}", model_photo)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     app.router.add_post("/api/me", me)

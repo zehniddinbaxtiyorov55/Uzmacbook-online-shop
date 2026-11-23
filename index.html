@@ -99,6 +99,8 @@ html.dark .pv::before{background:rgba(255,255,255,.04)}
 .dots i{width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,.18)}
 .dots i.on{background:var(--tx)}
 .demo{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:11px;color:var(--tx2);z-index:2}
+.demo.mp{left:50%;right:auto;transform:translateX(-50%);background:rgba(0,0,0,.45);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.dots~.demo.mp{bottom:58px}
 .body{position:relative;margin-top:-24px;background:var(--bg);border-radius:26px 26px 0 0;padding:26px 22px 0;box-shadow:0 -6px 20px rgba(0,0,0,.04)}
 .hd{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .hd h3{font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.01em}
@@ -286,7 +288,11 @@ function uzs(i) {
   return `<div class="uzs">≈ ${sp3(v)} so'm</div>
     <div class="rate">Kurs: 1$ = ${sp3(usdUzs)} so'm${rateDate ? " · " + esc(rateDate) : ""}</div>`;
 }
-function pics(i) { return i.photos.length ? {list: i.photos, stock: false} : {list: i.stock || [], stock: true}; }
+function pics(i) {
+  if (i.photos.length) return {list: i.photos, stock: false};                      // tovarning o'z rasmi (Billz)
+  if (i.mphotos && i.mphotos.length) return {list: i.mphotos, stock: false, model: true};  // model rasmi (admin panel)
+  return {list: i.stock || [], stock: true};                                        // Apple namunaviy rasmi
+}
 function imgTag(list) {
   if (!list.length) return ICON;
   return `<img src="${esc(list[0])}" data-alt="${esc(list.slice(1).join("|"))}" onerror="nextImg(this)" loading="lazy" alt="">`;
@@ -406,7 +412,8 @@ function openItem(id) {
       <button class="ib" data-close style="left:16px" aria-label="Orqaga">${I.back}</button>
       ${P.list.length ? `<div class="gal" id="gal">${P.stock ? imgTag(P.list) : P.list.map(u => `<img src="${esc(u)}" alt="">`).join("")}</div>` : ICON}
       ${multi ? `<div class="dots">${P.list.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
-      ${P.stock && P.list.length ? `<div class="demo">Namunaviy rasm${/wikimedia/.test(P.list[0]) ? " (Wikimedia Commons)" : ""} · haqiqiy holatini menejerdan so'rang</div>` : ""}
+      ${P.stock && P.list.length ? `<div class="demo">Namunaviy rasm${/wikimedia/.test(P.list[0]) ? " (Wikimedia Commons)" : ""} · haqiqiy holatini menejerdan so'rang</div>`
+        : P.model ? `<div class="demo mp">Shu modelning rasmi · aniq holatini menejerdan so'rang</div>` : ""}
     </div>
     <div class="body">
       <div class="hd">

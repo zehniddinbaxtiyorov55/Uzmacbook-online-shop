@@ -1,12 +1,13 @@
 """Admin panel: https://ADMIN_HOST/admin (login va parol .env da: ADMIN_USER, ADMIN_PASSWORD).
 
 Bo'limlar: statistika, buyurtmalar, mijozlar, mijozlarga xabar yuborish,
-tovarlarni yashirish/ko'rsatish, bot matnlari va sozlamalar."""
+tovarlarni yashirish/ko'rsatish, model rasmlari, bot matnlari va sozlamalar."""
 import asyncio, csv, datetime, hashlib, hmac, io, logging, os, time, uuid
 from aiohttp import web
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter, TelegramBadRequest
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 import db
+import model_photos
 import settings
 import webapp
 
@@ -235,7 +236,8 @@ async def products(req):
     hidden = db.hidden_ids()
     out = [{"id": i["id"], "name": i["name"], "category": i["category"], "price": i["price"],
             "promo": i["promo"], "currency": i["currency"], "qty": i["qty"],
-            "photo": (i["photos"] or i["stock"] or [""])[0], "hidden": i["id"] in hidden,
+            "photo": (i["photos"] or model_photos.urls(i.get("mkey") or "", webapp.URL)
+                      or i["stock"] or [""])[0], "hidden": i["id"] in hidden,
             "in_stock": True} for i in items]
     have = {i["id"] for i in items}
     for r in db.q("SELECT product_id, name FROM hidden"):
@@ -256,6 +258,90 @@ async def product_hide(req):
     db.set_hidden(pid, str(body.get("name") or "")[:300], bool(body.get("hidden")))
     log.info("ADMIN: tovar %s: %s", "yashirildi" if body.get("hidden") else "ko'rsatildi", body.get("name"))
     return web.json_response({"ok": True})
+
+
+# ---------- Model rasmlari ----------
+def _group_out(g):
+    g["photos"] = [{"file": f, "url": u} for f, u in
+                   zip(model_photos.files(g["key"]), model_photos.urls(g["key"], webapp.URL))]
+    return g
+
+
+async def models(_):
+    """Hozir Billz'da bor tovarlar guruhlari (model + chip + ekran + rang) va ularning rasmlari."""
+    items = await webapp.load()
+    groups = {}
+    for i in items:
+        k = i.get("mkey")
+        if not k:
+            continue
+        g = groups.get(k)
+        if not g:
+            g = groups[k] = {"key": k, "label": i.get("mlabel") or k, "mac": bool(i.get("mac")),
+                             "category": i["category"], "count": 0, "own": 0, "names": [],
+                             "sample": (i["stock"] or [""])[0]}
+        g["count"] += 1
+        if i["photos"]:
+            g["own"] += 1
+        if len(g["names"]) < 3 and i["name"] not in g["names"]:
+            g["names"].append(i["name"])
+    for k in model_photos.keys():  # rasmi bor, lekin hozir sotuvda yo'q guruhlar
+        if k not in groups:
+            groups[k] = {"key": k, "label": model_photos.label(k) or k, "mac": "macbook" in k,
+                         "category": "", "count": 0, "own": 0, "names": [], "sample": ""}
+    out = [_group_out(g) for g in groups.values()]
+    out.sort(key=lambda g: (not g["mac"], g["count"] == 0, g["label"].lower()))
+    return web.json_response({"groups": out, "max": model_photos.MAX, "loaded_at": webapp.cache["at"]})
+
+
+def _mkey(req):
+    k = req.match_info.get("key", "")
+    if not model_photos.KEY_RX.match(k):
+        raise web.HTTPBadRequest()
+    return k
+
+
+async def model_upload(req):
+    key = _mkey(req)
+    try:
+        form = await req.post()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Rasm juda katta (8 MB gacha)"}, status=400)
+    photo = form.get("photo")
+    if not hasattr(photo, "file"):
+        return web.json_response({"ok": False, "error": "Rasm tanlanmagan"}, status=400)
+    try:
+        name = model_photos.save(key, photo.file.read(model_photos.MAX_BYTES + 1),
+                                 str(form.get("label") or ""))
+    except ValueError as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+    log.info("ADMIN: model rasmi qo'shildi: %s/%s", key, name)
+    return web.json_response({"ok": True, "group": _group_out({"key": key})})
+
+
+async def model_delete(req):
+    key = _mkey(req)
+    try:
+        body = await req.json()
+        model_photos.delete(key, str(body.get("file") or ""))
+    except ValueError as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+    except Exception:
+        return web.json_response({"ok": False}, status=400)
+    log.info("ADMIN: model rasmi o'chirildi: %s/%s", key, body.get("file"))
+    return web.json_response({"ok": True, "group": _group_out({"key": key})})
+
+
+async def model_main(req):
+    key = _mkey(req)
+    try:
+        body = await req.json()
+        model_photos.make_main(key, str(body.get("file") or ""))
+    except ValueError as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+    except Exception:
+        return web.json_response({"ok": False}, status=400)
+    return web.json_response({"ok": True, "group": _group_out({"key": key})})
 
 
 # ---------- Xabar yuborish ----------
@@ -396,6 +482,10 @@ def setup(app, bot, main_menu=None):
     r.add_post("/admin/api/settings", settings_save)
     r.add_get("/admin/api/products", products)
     r.add_post("/admin/api/products/hide", product_hide)
+    r.add_get("/admin/api/models", models)
+    r.add_post("/admin/api/models/{key}/upload", model_upload)
+    r.add_post("/admin/api/models/{key}/delete", model_delete)
+    r.add_post("/admin/api/models/{key}/main", model_main)
     r.add_get("/admin/api/broadcasts", broadcasts)
     r.add_post("/admin/api/broadcast", broadcast)
     r.add_post("/admin/api/broadcast/stop", broadcast_stop)
