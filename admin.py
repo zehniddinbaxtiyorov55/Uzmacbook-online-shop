@@ -228,6 +228,7 @@ async def settings_save(req):
     if settings.num("usd_rate_extra") != old_extra:
         webapp.rate_cache["at"] = 0  # kurs yangi qo'shimcha bilan qayta hisoblansin
         webapp.usd_rate()
+    webapp.apply_manual_rate()  # hozir kurs yo'q bo'lsa, zaxira darrov ishlaydi
     log.info("ADMIN: sozlamalar saqlandi: %s", ", ".join(values.keys()))
     return web.json_response({"ok": True, "fields": settings.all_for_admin()})
 

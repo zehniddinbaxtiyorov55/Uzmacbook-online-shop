@@ -26,6 +26,7 @@ settings.DEFAULTS.update(
     inst_max=os.environ.get("INSTALLMENT_MAX_MONTHS", "8"),
     inst_pct=os.environ.get("INSTALLMENT_MONTHLY_PCT", "6"),
     usd_rate_extra=os.environ.get("USD_RATE_EXTRA", "0"),
+    usd_rate=os.environ.get("USD_RATE", ""),  # zaxira kurs (admin panelda o'zgartiriladi)
     order_thanks="Rahmat! Buyurtmangiz qabul qilindi, menejerimiz tez orada bog'lanadi.",
 )
 
@@ -109,14 +110,21 @@ def usd_rate():
     return rate_cache["rate"], rate_cache["date"] + (" · " + rate_cache["src"] if rate_cache["src"] else "")
 
 
+def apply_manual_rate():
+    """Bank saytlari ochilmay, hali birorta kurs ham olinmagan bo'lsa — admin paneldagi zaxira kurs."""
+    manual = settings.num("usd_rate")
+    if not rate_cache["rate"] and manual > 0:
+        rate_cache.update(rate=manual, date="zaxira kurs", src="", at=time.time())
+        log.warning("BOT: bank kursi olinmadi, zaxira kurs ishlatildi: %s", manual)
+
+
 async def refresh_rate():
     """Banklarning bugungi dollar OLISH kursi: eng balandi (bank.uz). Bo'lmasa — MB kursi."""
     try:
         await asyncio.wait_for(_refresh_rate(), 30)
     except Exception:
         log.warning("BOT: MB kursi 30 soniyada kelmadi")
-        if not rate_cache["rate"] and os.environ.get("USD_RATE"):
-            rate_cache.update(rate=float(os.environ["USD_RATE"]), date="qo'lda", at=time.time())
+        apply_manual_rate()
         if not rate_cache["rate"]:
             rate_cache["at"] = time.time() - RATE_TTL + 300
     finally:
@@ -153,8 +161,7 @@ async def _refresh_rate():
             log.warning("BOT: banklar kursi topilmadi, MB kursi ishlatildi: %s -> %s", cbu, rate)
     except Exception:
         log.exception("BOT: MB kursini olib bo'lmadi")
-    if not rate_cache["rate"] and os.environ.get("USD_RATE"):
-        rate_cache.update(rate=float(os.environ["USD_RATE"]), date="qo'lda", at=time.time())
+    apply_manual_rate()
     if not rate_cache["rate"]:
         rate_cache["at"] = time.time() - RATE_TTL + 300  # 5 daqiqadan keyin qayta urinadi
 lock = asyncio.Lock()

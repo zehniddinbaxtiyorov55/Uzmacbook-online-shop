@@ -22,6 +22,8 @@ FIELDS = [
     ("inst_max", "Eng ko'p muddat, oy", "int", "Masalan 8"),
     ("inst_pct", "Har oy ustama, % (to'liq narxdan)", "num", "Masalan 6"),
     ("usd_rate_extra", "Dollar kursiga qo'shimcha, so'm", "num", "Banklar olish kursiga qo'shiladi. 0 — qo'shilmaydi"),
+    ("usd_rate", "Zaxira dollar kursi, so'm", "num",
+     "Kurs bank saytlaridan o'zi olinadi. Ular ochilmay qolsagina shu kurs ishlatiladi. Bo'sh — zaxira yo'q"),
 ]
 KINDS = {k: kind for k, _, kind, _ in FIELDS}
 
@@ -62,6 +64,8 @@ def clean(key, value):
         return str(int(f))
     if key in ("inst_down", "inst_pct") and not 0 <= f <= 100:
         raise ValueError("%s: 0 dan 100 gacha" % key)
+    if key == "usd_rate" and not 1000 <= f <= 100000:
+        raise ValueError("Zaxira kurs: so'mda yozing, masalan 12040")
     return ("%g" % f)
 
 
