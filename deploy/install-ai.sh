@@ -37,6 +37,10 @@ ask() {  # ask O'ZGARUVCHI "Savol" [standart] [req]
   printf -v "$1" '%s' "$v"
 }
 
+setenv() {  # setenv FAYL KALIT QIYMAT — bor bo'lsa almashtiradi, yo'q bo'lsa qo'shadi
+  if grep -q "^$2=" "$1"; then sed -i "s#^$2=.*#$2=$3#" "$1"; else echo "$2=$3" >> "$1"; fi
+}
+
 git_ssh() { GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" git "$@"; }
 
 main() {
@@ -85,6 +89,7 @@ main() {
   "$DIR/venv/bin/pip" install -q --upgrade pip >/dev/null
   "$DIR/venv/bin/pip" install -q -r "$DIR/requirements.txt"
   ok "kutubxonalar o'rnatildi"
+  mkdir -p /var/lib/aibot && chown "$RUN_USER:$RUN_USER" /var/lib/aibot && chmod 750 /var/lib/aibot
   cp -f "$0" /opt/aibot-install.sh 2>/dev/null || true
 
   # ---------- 4. Sozlamalar ----------
@@ -126,6 +131,19 @@ EOF
     umask 022
   else
     say "4/5 Sozlamalar: $ENVF allaqachon bor — tegilmadi"
+  fi
+  # Admin panel ("🤖 AI bot" bo'limi) uchun ichki API: suhbatlar, ko'rsatmalar, yoqish/o'chirish
+  local secret shop_restart=0
+  secret="$(grep -m1 '^AI_ADMIN_SECRET=' "$ENVF" | cut -d= -f2- || true)"
+  [ -n "$secret" ] || secret="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+  setenv "$ENVF" AI_ADMIN_SECRET "$secret"
+  grep -q '^AI_API_PORT=' "$ENVF" || setenv "$ENVF" AI_API_PORT 8091
+  grep -q '^AI_DB_PATH=' "$ENVF" || setenv "$ENVF" AI_DB_PATH /var/lib/aibot/ai.db
+  local ai_port; ai_port="$(grep -m1 '^AI_API_PORT=' "$ENVF" | cut -d= -f2-)"
+  if [ -f "$SHOP_ENV" ]; then
+    setenv "$SHOP_ENV" AI_API_URL "http://127.0.0.1:$ai_port"
+    setenv "$SHOP_ENV" AI_ADMIN_SECRET "$secret"
+    shop_restart=1
   fi
   chown "root:$RUN_USER" "$ENVF"
   chmod 640 "$ENVF"
@@ -181,6 +199,9 @@ EOF
   done
   if [ "$up" = 1 ]; then
     ok "AI bot ishga tushdi"
+    if [ "$shop_restart" = 1 ] && systemctl list-unit-files onlineshop.service >/dev/null 2>&1; then
+      systemctl restart onlineshop && ok "Admin panelga ulandi: 🤖 AI bot bo'limi"
+    fi
     journalctl -u "$SVC" --since "$since" --no-pager | grep -E "tanlangan modellar|xato|Error" | tail -4 | sed 's/^/    /' || true
   else
     journalctl -u "$SVC" --since "$since" -n 40 --no-pager || true
@@ -189,6 +210,7 @@ EOF
 
   printf '\n\033[1;32m================ TAYYOR ================\033[0m\n'
   echo "  AI bot: ${BOTNAME:+@$BOTNAME} — Telegram Business orqali do'kon akkauntiga javob beradi"
+  echo "  Boshqaruv: admin panel → 🤖 AI bot (suhbatlar, tahlil, ko'rsatmalar, yoqish/o'chirish)"
   echo
   echo "  MUHIM: Render'dagi eski uzmacbook-ai-bot servisini hozir Suspend qiling,"
   echo "  aks holda u qayta yonganda botni o'ziga tortib oladi."

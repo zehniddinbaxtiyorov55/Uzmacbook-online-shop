@@ -208,6 +208,35 @@ tr:last-child td{border-bottom:0}
 .catrow.off .cn{opacity:.45;text-decoration:line-through}
 .sn{display:block;font-size:12px;color:var(--tx3);font-weight:400;margin-top:2px}
 .ctag{display:inline-block;font-size:11px;color:var(--orange);margin-left:6px}
+/* ---- AI bot ---- */
+.aisw{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.aisw .nm{font-weight:700;font-size:17px}
+.aisw .ct{font-size:13px;color:var(--tx2);margin-top:2px}
+.aion.off{background:var(--orange-bg)}
+.sw.big{width:58px;height:34px}
+.sw.big span{border-radius:17px}
+.sw.big span:before{width:30px;height:30px}
+.sw.big input:checked+span:before{transform:translateX(24px)}
+.aitabs{margin-bottom:14px}
+.chatrow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
+.chatrow:hover{background:var(--soft)}
+.chatrow:last-child{border-bottom:0}
+.av{width:40px;height:40px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--tx2)}
+.chatrow .nm{font-weight:600}
+.chatrow .pvw{font-size:13px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chatrow .tm{font-size:12px;color:var(--tx3);text-align:right;white-space:nowrap}
+.aich{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.aich .nm{flex:1;font-weight:650;min-width:160px}
+.msgs{display:flex;flex-direction:column;gap:8px;max-height:65vh;overflow-y:auto;padding:4px 2px}
+.msg{max-width:78%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg .who{font-size:11px;font-weight:650;opacity:.65;margin-bottom:2px}
+.msg .at{font-size:10px;opacity:.5;margin-top:3px;text-align:right}
+.msg.user{align-self:flex-start;background:var(--soft)}
+.msg.model,.msg.nudge{align-self:flex-end;background:#e8f0fe}
+.msg.owner{align-self:flex-end;background:var(--green-bg)}
+@media (prefers-color-scheme:dark){.msg.model,.msg.nudge{background:#11284a}}
+.airesult{white-space:pre-wrap;line-height:1.6;font-size:14px}
+textarea.prompt-ta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;min-height:440px}
 /* ---- model rasmlari ---- */
 .mhelp{font-size:13px;color:var(--tx2);line-height:1.55}
 .mhelp b{color:var(--tx)}
@@ -256,6 +285,7 @@ tr:last-child td{border-bottom:0}
       <a href="#broadcast" data-v="broadcast"><span class="ico">📣</span>Xabar yuborish</a>
       <a href="#products" data-v="products"><span class="ico">💻</span>Tovarlar</a>
       <a href="#models" data-v="models"><span class="ico">📸</span>Model rasmlari</a>
+      <a href="#aibot" data-v="aibot"><span class="ico">🤖</span>AI bot</a>
       <a href="#settings" data-v="settings"><span class="ico">⚙️</span>Matn va sozlamalar</a>
     </nav>
     <div class="foot">
@@ -278,7 +308,7 @@ const view = $("#view");
 const TZ = "Asia/Tashkent";
 const STATUS = {new: "Yangi", contacted: "Bog'lanildi", sold: "Sotildi", cancelled: "Bekor"};
 const TITLES = {dashboard: "Bosh sahifa", orders: "Buyurtmalar", users: "Mijozlar", broadcast: "Xabar yuborish",
-                products: "Tovarlar", models: "Model rasmlari", settings: "Matn va sozlamalar"};
+                products: "Tovarlar", models: "Model rasmlari", aibot: "AI bot", settings: "Matn va sozlamalar"};
 let current = "", timer = null;
 
 function esc(s) {
@@ -816,6 +846,166 @@ async function uploadModel(key, files, box) {
   if (done) toast(`${done} ta rasm qo'shildi — Mini App'da darhol ko'rinadi`);
 }
 
+// ---------- AI bot ----------
+const ast = {tab: "chats", q: "", items: [], total: 0, now: 0, days: 7, analysis: null};
+const WHO = {user: "Mijoz", model: "AI", nudge: "AI · qayta yozdi", owner: "Menejer"};
+async function aibot() {
+  $("#act").innerHTML = `<button class="btn ghost sm" id="airf">↻ Yangilash</button>`;
+  $("#airf").onclick = () => aibot().catch(e => toast(e.message, true));
+  let st;
+  try { st = await api("ai/status"); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; return; }
+  const s = st.stats;
+  view.innerHTML = `
+  <div class="card aion${st.enabled ? "" : " off"}" id="aicard"><div class="aisw">
+    <div><div class="nm">AI javob beradi</div><div class="ct" id="aistate"></div></div>
+    <label class="sw big"><input type="checkbox" id="aien"${st.enabled ? " checked" : ""} aria-label="AI javob beradi"><span></span></label>
+  </div></div>
+  <div class="kpis">
+    ${kpi("Bugun yozgan mijozlar", s.chats_today, "7 kunda " + s.week_chats)}
+    ${kpi("Bugungi xabarlar", s.msgs_today, "mijozlardan")}
+    ${kpi("AI javoblari bugun", s.ai_today, "")}
+    ${kpi("Jami suhbatlar", s.chats_total, st.bot ? "@" + st.bot : "")}
+  </div>
+  <div class="chips aitabs">${[["chats", "💬 Suhbatlar"], ["analysis", "📊 Tahlil"], ["prompt", "🧠 Ko'rsatmalar"], ["settings", "⚙️ Sozlamalar"]]
+    .map(([k, l]) => `<button class="chip${ast.tab === k ? " on" : ""}" data-t="${k}">${l}</button>`).join("")}</div>
+  <div id="aiview"></div>`;
+  const stateText = on => $("#aistate").textContent = on
+    ? "Yoqilgan — do'kon akkauntiga kelgan xabarlarga AI javob beryapti"
+    : "O'chirilgan — xabarlar saqlanadi, lekin AI javob bermaydi. Mijozlarga o'zingiz javob berasiz.";
+  stateText(st.enabled);
+  $("#aien").onchange = async e => {
+    const on = e.target.checked;
+    try {
+      await api("ai/enabled", {body: {enabled: on}});
+      $("#aicard").classList.toggle("off", !on); stateText(on);
+      toast(on ? "AI yoqildi" : "AI o'chirildi — endi mijozlarga o'zingiz javob berasiz");
+    } catch (err) { e.target.checked = !on; toast(err.message, true); }
+  };
+  view.querySelectorAll(".aitabs .chip").forEach(b => b.onclick = () => {
+    ast.tab = b.dataset.t;
+    view.querySelectorAll(".aitabs .chip").forEach(x => x.classList.toggle("on", x === b));
+    aiTab();
+  });
+  aiTab();
+}
+function aiTab() {
+  const f = {chats: aiChats, analysis: aiAnalysis, prompt: aiPrompt, settings: aiSettings}[ast.tab] || aiChats;
+  $("#aiview").innerHTML = '<div class="card"><div class="empty">Yuklanmoqda…</div></div>';
+  f().catch(e => { if ($("#aiview")) $("#aiview").innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
+}
+async function aiChats(more) {
+  if (!more) ast.items = [];
+  const d = await api("ai/chats?" + new URLSearchParams({q: ast.q, offset: ast.items.length}));
+  ast.items = ast.items.concat(d.items); ast.total = d.total; ast.now = d.now;
+  if (!more) {
+    $("#aiview").innerHTML = `
+    <div class="tools"><input class="in" id="aiq" placeholder="Qidirish: ism, @username yoki xabar matni" value="${esc(ast.q)}">
+      <span class="muted" id="aisum"></span></div>
+    <div class="card" style="padding:8px 12px"><div id="ailist"></div></div><div id="aimore" style="text-align:center"></div>`;
+    let t;
+    $("#aiq").oninput = e => { clearTimeout(t); t = setTimeout(() => { ast.q = e.target.value.trim(); aiChats().catch(er => toast(er.message, true)); }, 350); };
+    $("#ailist").onclick = e => { const r = e.target.closest("[data-chat]"); if (r) aiOpen(+r.dataset.chat).catch(er => toast(er.message, true)); };
+  }
+  $("#aisum").textContent = `${ast.total} ta suhbat`;
+  $("#ailist").innerHTML = ast.items.length ? ast.items.map(c => {
+    const paused = c.paused_until > ast.now, nm = c.name || (c.username ? "@" + c.username : "Mijoz");
+    const pre = c.last_role && c.last_role !== "user" ? WHO[c.last_role] + ": " : "";
+    return `<div class="chatrow" data-chat="${c.id}">
+      <div class="av">${esc((nm.replace("@", "")[0] || "?").toUpperCase())}</div>
+      <div><div class="nm">${esc(nm)}${c.username && c.name ? ` <span class="muted" style="font-weight:400">@${esc(c.username)}</span>` : ""}${paused ? ' <span class="tag">AI jim</span>' : ""}</div>
+        <div class="pvw">${esc(pre + (c.last_text || ""))}</div></div>
+      <div class="tm">${ago(c.last_at)}<br>${c.msgs} xabar</div></div>`;
+  }).join("") : `<div class="empty">${ast.q ? "Topilmadi" : "Hali suhbatlar yo'q. Mijozlar do'kon akkauntiga yozganda shu yerda paydo bo'ladi."}</div>`;
+  $("#aimore").innerHTML = ast.items.length < ast.total ? `<button class="btn ghost" id="aimb">Yana ko'rsatish (${ast.total - ast.items.length})</button>` : "";
+  if ($("#aimb")) $("#aimb").onclick = () => aiChats(true).catch(er => toast(er.message, true));
+}
+async function aiOpen(id) {
+  const d = await api("ai/chats/" + id);
+  const c = d.chat, paused = c.paused_until > d.now;
+  $("#aiview").innerHTML = `<div class="card">
+    <div class="aich"><button class="btn ghost sm" id="aiback">← Suhbatlar</button>
+      <div class="nm">${esc(c.name || "Mijoz")} ${c.username ? `<a href="https://t.me/${esc(c.username)}" target="_blank" rel="noopener">@${esc(c.username)}</a>` : ""}
+        <span class="muted" style="font-weight:400">· ID ${c.id}</span></div>
+      <button class="btn ${paused ? "blue" : "ghost"} sm" id="aipause">${paused ? "▶ Bu chatda AI'ni yoqish" : "⏸ Bu chatda AI'ni o'chirish"}</button></div>
+    ${paused ? `<div class="mown" style="margin:-4px 0 10px">Bu chatda AI jim turibdi (${when(c.paused_until)} gacha) — mijozga o'zingiz javob berasiz</div>` : ""}
+    <div class="msgs" id="aimsgs">${d.messages.map(m => `<div class="msg ${esc(m.role)}"><div class="who">${WHO[m.role] || esc(m.role)}</div>${esc(m.text)}<div class="at">${when(m.at)}</div></div>`).join("")
+      || '<div class="empty">Xabarlar yo\'q</div>'}</div></div>`;
+  const box = $("#aimsgs"); box.scrollTop = box.scrollHeight;
+  $("#aiback").onclick = () => aiChats().catch(e => toast(e.message, true));
+  $("#aipause").onclick = async () => {
+    try {
+      await api(`ai/chats/${id}/pause`, {body: {hours: paused ? 0 : 24 * 30}});
+      toast(paused ? "Bu chatda AI yana javob beradi" : "Bu chatda AI jim turadi — o'zingiz javob berasiz");
+      aiOpen(id);
+    } catch (e) { toast(e.message, true); }
+  };
+}
+async function aiAnalysis() {
+  const res = a => a.chats ? `<div class="muted" style="margin-bottom:10px">${a.chats} ta suhbat · oxirgi ${a.days} kun</div>
+      <div class="airesult">${esc(a.text)}</div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" id="aicopy">Nusxa olish</button>
+        <button class="btn ghost sm" id="aitop">🧠 Ko'rsatmalarga o'tish</button></div>`
+    : `<div class="empty">${esc(a.text)}</div>`;
+  $("#aiview").innerHTML = `<div class="card"><h3>Suhbatlar tahlili <small>AI saqlangan suhbatlarni o'qib, xulosa va yangi qoidalar taklif qiladi</small></h3>
+    <div class="tools">${[[1, "24 soat"], [7, "7 kun"], [30, "30 kun"]].map(([d, l]) => `<button class="chip${ast.days === d ? " on" : ""}" data-d="${d}">${l}</button>`).join("")}
+      <button class="btn blue" id="aigo">📊 Tahlil qilish</button></div>
+    <div id="aires">${ast.analysis ? res(ast.analysis) : '<div class="muted">Davrni tanlab «Tahlil qilish» ni bosing. 30–60 soniya vaqt oladi.</div>'}</div></div>`;
+  const bind = () => {
+    if ($("#aicopy")) $("#aicopy").onclick = () => navigator.clipboard.writeText(ast.analysis.text).then(() => toast("Nusxa olindi"));
+    if ($("#aitop")) $("#aitop").onclick = () => { ast.tab = "prompt"; view.querySelectorAll(".aitabs .chip").forEach(x => x.classList.toggle("on", x.dataset.t === "prompt")); aiTab(); };
+  };
+  bind();
+  $("#aiview").querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+    ast.days = +b.dataset.d; $("#aiview").querySelectorAll("[data-d]").forEach(x => x.classList.toggle("on", x === b));
+  });
+  $("#aigo").onclick = async () => {
+    $("#aigo").disabled = true;
+    $("#aires").innerHTML = '<div class="empty">AI suhbatlarni o\'qiyapti… 30–60 soniya</div>';
+    try { ast.analysis = await api("ai/analyze", {body: {days: ast.days}}); $("#aires").innerHTML = res(ast.analysis); bind(); }
+    catch (e) { $("#aires").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    finally { if ($("#aigo")) $("#aigo").disabled = false; }
+  };
+}
+async function aiPrompt() {
+  const d = await api("ai/prompt");
+  $("#aiview").innerHTML = `<div class="card"><h3><span>AI ko'rsatmalari${d.custom ? '<span class="tag">o\'zgartirilgan</span>' : ""}</span><small>AI mijozlarga shu qoidalar asosida javob beradi</small></h3>
+    <div class="muted" style="font-size:12px;margin:-6px 0 10px;line-height:1.5">Yangi qoida qo'shish uchun matn oxiriga yozing, masalan: «- Yetkazib berish narxini aytma, menejer aytadi».
+      Tahlil bo'limi taklif qilgan qoidalarni ham shu yerga qo'shasiz. <b>{SHOP}</b> — do'kon boti nomi o'rniga qo'yiladi. Sotuvdagi tovarlar ro'yxati (Billz) har safar avtomatik qo'shiladi.</div>
+    <textarea class="in prompt-ta" id="aipt" spellcheck="false">${esc(d.value)}</textarea>
+    <div class="savebar">${d.custom ? '<button class="btn ghost" id="aipr">Standartga qaytarish</button>' : ""}<button class="btn" id="aips">Saqlash</button></div></div>`;
+  $("#aips").onclick = async () => {
+    $("#aips").disabled = true;
+    try { await api("ai/prompt", {body: {value: $("#aipt").value}}); toast("Saqlandi — AI keyingi javobdan boshlab shunga amal qiladi"); await aiPrompt(); }
+    catch (e) { toast(e.message, true); }
+    finally { if ($("#aips")) $("#aips").disabled = false; }
+  };
+  if ($("#aipr")) $("#aipr").onclick = async () => {
+    if (!confirm("Ko'rsatmalar boshlang'ich holatiga qaytarilsinmi? Siz qo'shgan qoidalar o'chadi.")) return;
+    try { await api("ai/prompt", {body: {value: ""}}); toast("Standart ko'rsatmalar qaytdi"); await aiPrompt(); } catch (e) { toast(e.message, true); }
+  };
+}
+async function aiSettings() {
+  const d = await api("ai/settings");
+  const field = f => {
+    const val = f.value;
+    const input = f.kind === "bool"
+      ? `<select class="in" id="ai_${f.key}"><option value="0"${val === "1" ? "" : " selected"}>Yo'q</option><option value="1"${val === "1" ? " selected" : ""}>Ha</option></select>`
+      : `<input class="in" id="ai_${f.key}" value="${esc(val)}" inputmode="decimal">`;
+    return `<div class="field"><div class="fl"><label for="ai_${f.key}">${esc(f.label)}${f.custom ? '<span class="tag">o\'zgartirilgan</span>' : ""}</label></div>${input}
+      <div class="hint">${esc(f.hint)}${f.kind !== "bool" ? ` Standart: ${esc(f.default)}.` : ""}</div></div>`;
+  };
+  $("#aiview").innerHTML = `<div class="card"><h3>AI sozlamalari <small>O'zgarishlar darhol ishlaydi</small></h3>
+    <div class="grid2">${d.fields.map(field).join("")}</div></div>
+    <div class="savebar"><button class="btn" id="aiss">Saqlash</button></div>`;
+  $("#aiss").onclick = async () => {
+    const values = {};
+    d.fields.forEach(f => { const v = $("#ai_" + f.key).value.trim(); if (v !== String(f.value)) values[f.key] = v; });
+    if (!Object.keys(values).length) { toast("Hech narsa o'zgarmagan"); return; }
+    try { await api("ai/settings", {body: {values}}); toast("Saqlandi"); await aiSettings(); } catch (e) { toast(e.message, true); }
+  };
+}
+
 // ---------- sozlamalar ----------
 async function settings() {
   const d = await api("settings");
@@ -854,7 +1044,7 @@ async function settings() {
   };
 }
 
-const VIEWS = {dashboard, orders, users, broadcast, products, models, settings};
+const VIEWS = {dashboard, orders, users, broadcast, products, models, aibot, settings};
 start();
 </script>
 </body>

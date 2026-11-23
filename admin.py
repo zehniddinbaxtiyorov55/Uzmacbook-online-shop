@@ -1,8 +1,10 @@
 """Admin panel: https://ADMIN_HOST/admin (login va parol .env da: ADMIN_USER, ADMIN_PASSWORD).
 
 Bo'limlar: statistika, buyurtmalar, mijozlar, mijozlarga xabar yuborish,
-tovarlarni yashirish/ko'rsatish, model rasmlari, bot matnlari va sozlamalar."""
+tovarlarni yashirish/ko'rsatish, model rasmlari, bot matnlari va sozlamalar,
+AI bot (alohida xizmat — ichki API orqali: AI_API_URL + AI_ADMIN_SECRET)."""
 import asyncio, csv, datetime, hashlib, hmac, io, logging, os, time, uuid
+import aiohttp
 from aiohttp import web
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter, TelegramBadRequest
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -18,6 +20,8 @@ PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
 HOST = webapp.ADMIN_HOST
 UPLOADS = os.path.join(os.path.dirname(db.PATH), "uploads")
 SECRET = hashlib.sha256(("adm:%s:%s:%s" % (webapp.TOKEN, USER, PASSWORD)).encode()).digest()
+AI_URL = os.environ.get("AI_API_URL", "").strip().rstrip("/")   # masalan http://127.0.0.1:8091
+AI_SECRET = os.environ.get("AI_ADMIN_SECRET", "").strip()
 SESSION_DAYS = 30
 COOKIE = "adm"
 PAGE = 50
@@ -368,6 +372,29 @@ async def model_main(req):
     return web.json_response({"ok": True, "group": _group_out({"key": key})})
 
 
+# ---------- AI bot (alohida xizmat) ----------
+async def ai_proxy(req):
+    """Admin paneldagi "AI bot" bo'limi: so'rovni serverdagi AI botning ichki API'siga uzatadi."""
+    if not (AI_URL and AI_SECRET):
+        return web.json_response({"ok": False, "error": "AI bot admin panelga ulanmagan. Serverda AI botni "
+                                  "o'rnatish buyrug'ini qayta ishga tushiring."}, status=503)
+    tail = req.match_info["tail"]
+    if not tail or ".." in tail:
+        raise web.HTTPNotFound()
+    data = await req.read() if req.method == "POST" else None
+    timeout = aiohttp.ClientTimeout(total=150 if tail == "analyze" else 20)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as s:
+            async with s.request(req.method, AI_URL + "/api/" + tail, params=req.query, data=data,
+                                 headers={"X-Admin-Secret": AI_SECRET, "Content-Type": "application/json"}) as r:
+                return web.Response(body=await r.read(), status=r.status, content_type="application/json")
+    except asyncio.TimeoutError:
+        return web.json_response({"ok": False, "error": "AI bot javob bermadi (vaqt tugadi)"}, status=504)
+    except aiohttp.ClientError:
+        return web.json_response({"ok": False, "error": "AI bot ishlamayapti. Serverda tekshiring: "
+                                  "systemctl status aibot"}, status=503)
+
+
 # ---------- Xabar yuborish ----------
 def shop_kb():
     if not webapp.URL:
@@ -507,6 +534,8 @@ def setup(app, bot, main_menu=None):
     r.add_get("/admin/api/products", products)
     r.add_post("/admin/api/products/hide", product_hide)
     r.add_post("/admin/api/categories/hide", category_hide)
+    r.add_get("/admin/api/ai/{tail:.*}", ai_proxy)
+    r.add_post("/admin/api/ai/{tail:.*}", ai_proxy)
     r.add_get("/admin/api/models", models)
     r.add_post("/admin/api/models/{key}/upload", model_upload)
     r.add_post("/admin/api/models/{key}/delete", model_delete)
