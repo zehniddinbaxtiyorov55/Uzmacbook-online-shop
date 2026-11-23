@@ -127,7 +127,9 @@ async def stats(_):
             ctx["bot_name"] = (await ctx["bot"].get_me()).username
         except Exception:
             pass
-    out["products"] = {"total": len(items), "hidden": len([i for i in items if i["id"] in hidden]),
+    cats = db.hidden_cats()
+    out["products"] = {"total": len(items),
+                       "hidden": len([i for i in items if i["id"] in hidden or i["category"] in cats]),
                        "loaded": bool(webapp.cache["at"])}
     out["rate"] = {"rate": rate, "date": rdate}
     out["bot"] = ctx.get("bot_name") or ""
@@ -186,7 +188,9 @@ async def orders_csv(req):
                         ["№", "Sana", "Mijoz", "Username", "Telefon", "Tovarlar", "Jami", "Muddat (oy)",
                          "Holati", "Izoh"],
                         [[r["id"], fmt_time(r["created_at"]), r["name"], r["username"], r["phone"],
-                          " | ".join("%s — %s %s" % (i["name"], i["price"], i["currency"]) for i in r["items"]),
+                          " | ".join("%s — %s %s%s" % (i["name"], i["price"], i["currency"],
+                                                         " (%s)" % i["serial"] if i.get("serial") else "")
+                                     for i in r["items"]),
                           " + ".join("%s %s" % (v, c) for c, v in r["totals"].items()),
                           r["months"] or "", STATUS_UZ.get(r["status"], r["status"]), r["note"]]
                          for r in rows])
@@ -233,11 +237,12 @@ async def products(req):
     if req.query.get("refresh"):
         webapp.cache["at"] = 0
     items = await webapp.load()
-    hidden = db.hidden_ids()
+    hidden, hcats = db.hidden_ids(), db.hidden_cats()
     out = [{"id": i["id"], "name": i["name"], "category": i["category"], "price": i["price"],
             "promo": i["promo"], "currency": i["currency"], "qty": i["qty"],
             "photo": (i["photos"] or model_photos.urls(i.get("mkey") or "", webapp.URL)
                       or i["stock"] or [""])[0], "hidden": i["id"] in hidden,
+            "cat_hidden": i["category"] in hcats, "serial": webapp.serial_text(i),
             "in_stock": True} for i in items]
     have = {i["id"] for i in items}
     for r in db.q("SELECT product_id, name FROM hidden"):
@@ -246,7 +251,25 @@ async def products(req):
                         "price": 0, "promo": 0, "currency": "", "qty": 0, "photo": "",
                         "hidden": True, "in_stock": False})
     out.sort(key=lambda x: (x["category"], x["name"]))
-    return web.json_response({"items": out, "loaded_at": webapp.cache["at"]})
+    counts = {}
+    for i in items:
+        counts[i["category"]] = counts.get(i["category"], 0) + 1
+    cats = [{"name": c, "count": n, "hidden": c in hcats} for c, n in sorted(counts.items())]
+    cats += [{"name": c, "count": 0, "hidden": True} for c in sorted(hcats - set(counts))]
+    return web.json_response({"items": out, "categories": cats, "loaded_at": webapp.cache["at"]})
+
+
+async def category_hide(req):
+    try:
+        body = await req.json()
+        name = str(body["name"]).strip()[:200]
+    except Exception:
+        return web.json_response({"ok": False}, status=400)
+    if not name:
+        return web.json_response({"ok": False}, status=400)
+    db.set_hidden_cat(name, bool(body.get("hidden")))
+    log.info("ADMIN: kategoriya %s: %s", "yashirildi" if body.get("hidden") else "ko'rsatildi", name)
+    return web.json_response({"ok": True})
 
 
 async def product_hide(req):
@@ -482,6 +505,7 @@ def setup(app, bot, main_menu=None):
     r.add_post("/admin/api/settings", settings_save)
     r.add_get("/admin/api/products", products)
     r.add_post("/admin/api/products/hide", product_hide)
+    r.add_post("/admin/api/categories/hide", category_hide)
     r.add_get("/admin/api/models", models)
     r.add_post("/admin/api/models/{key}/upload", model_upload)
     r.add_post("/admin/api/models/{key}/delete", model_delete)

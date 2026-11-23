@@ -201,6 +201,13 @@ tr:last-child td{border-bottom:0}
   .prod .sw{grid-row:1;grid-column:3}
   .tools .in{max-width:none;flex:1;min-width:160px}
 }
+/* ---- kategoriyalar, seriya ---- */
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 18px}
+.catrow{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.catrow .cn{flex:1;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catrow.off .cn{opacity:.45;text-decoration:line-through}
+.sn{display:block;font-size:12px;color:var(--tx3);font-weight:400;margin-top:2px}
+.ctag{display:inline-block;font-size:11px;color:var(--orange);margin-left:6px}
 /* ---- model rasmlari ---- */
 .mhelp{font-size:13px;color:var(--tx2);line-height:1.55}
 .mhelp b{color:var(--tx)}
@@ -476,7 +483,7 @@ function orderCard(o) {
       <div class="top"><span class="no">№${o.id}</span><span class="pill st-${o.status}">${STATUS[o.status]}</span>
         <span class="muted">${when(o.created_at)}</span></div>
       <div><span class="who">${esc(o.name || "—")}</span> · ${uname} · ${telLink(o.phone)}</div>
-      <ul>${o.items.map(i => `<li><span>${esc(i.name)}</span><span>${money(i.price, i.currency)}</span></li>`).join("")}</ul>
+      <ul>${o.items.map(i => `<li><span>${esc(i.name)}${i.serial ? `<small class="sn">🔢 ${esc(i.serial)}</small>` : ""}</span><span>${money(i.price, i.currency)}</span></li>`).join("")}</ul>
       <div class="tot"><span>Jami</span><span>${moneyObj(o.totals)}</span></div>
       <div class="pay">${esc(o.pay || "")}</div>
     </div>
@@ -633,14 +640,17 @@ function renderJobs(d) {
 }
 
 // ---------- tovarlar ----------
-const pst = {q: "", cat: "", only: false, items: []};
+const pst = {q: "", cat: "", only: false, items: [], cats: []};
 async function products(refresh) {
   $("#act").innerHTML = `<button class="btn ghost sm" id="prf">↻ Billz'dan yangilash</button>`;
   $("#prf").onclick = async () => { $("#prf").disabled = true; try { await products(true); toast("Billz'dan yangilandi"); } catch (e) { toast(e.message, true); } };
   const d = await api("products" + (refresh === true ? "?refresh=1" : ""));
   pst.items = d.items;
+  pst.cats = d.categories || [];
   const cats = [...new Set(d.items.map(i => i.category))];
   view.innerHTML = `
+  <div class="card"><h3>Kategoriyalar <small>O'chirilgan kategoriya Mini App'da butunlay ko'rinmaydi — bir bosishda</small></h3>
+    <div class="cats" id="pcats"></div></div>
   <div class="tools">
     <input class="in" id="pq" placeholder="Qidirish: nomi" value="${esc(pst.q)}">
     <select class="in" id="pc" style="max-width:220px"><option value="">Barcha kategoriyalar</option>
@@ -653,15 +663,32 @@ async function products(refresh) {
   $("#pq").oninput = e => { pst.q = e.target.value.trim().toLowerCase(); renderProducts(); };
   $("#pc").onchange = e => { pst.cat = e.target.value; renderProducts(); };
   $("#ponly").onclick = () => { pst.only = !pst.only; $("#ponly").classList.toggle("on", pst.only); renderProducts(); };
+  renderCats();
   renderProducts();
 }
+function renderCats() {
+  $("#pcats").innerHTML = pst.cats.map(c => `<label class="catrow${c.hidden ? " off" : ""}">
+      <span class="cn" title="${esc(c.name)}">${esc(c.name)}</span><span class="muted">${c.count} ta</span>
+      <span class="sw"><input type="checkbox" data-cat="${esc(c.name)}"${c.hidden ? "" : " checked"} aria-label="Mini App'da ko'rsatish: ${esc(c.name)}"><span></span></span>
+    </label>`).join("") || '<div class="muted">Kategoriyalar hali yuklanmadi</div>';
+  $("#pcats").querySelectorAll("input[data-cat]").forEach(cb => cb.onchange = async () => {
+    const c = pst.cats.find(x => x.name === cb.dataset.cat), hide = !cb.checked;
+    try {
+      await api("categories/hide", {body: {name: c.name, hidden: hide}});
+      c.hidden = hide;
+      pst.items.forEach(i => { if (i.category === c.name) i.cat_hidden = hide; });
+      toast(hide ? `«${c.name}» yashirildi — Mini App'da ko'rinmaydi` : `«${c.name}» yana ko'rinadi`);
+      renderCats(); renderProducts();
+    } catch (e) { cb.checked = !cb.checked; toast(e.message, true); }
+  });
+}
 function renderProducts() {
-  const list = pst.items.filter(i => (!pst.q || i.name.toLowerCase().includes(pst.q)) && (!pst.cat || i.category === pst.cat) && (!pst.only || i.hidden));
-  const hid = pst.items.filter(i => i.hidden).length;
+  const list = pst.items.filter(i => (!pst.q || i.name.toLowerCase().includes(pst.q)) && (!pst.cat || i.category === pst.cat) && (!pst.only || i.hidden || i.cat_hidden));
+  const hid = pst.items.filter(i => i.hidden || i.cat_hidden).length;
   $("#psum").textContent = `${pst.items.length - hid} ta ko'rinadi · ${hid} ta yashirilgan`;
-  $("#plist").innerHTML = list.length ? list.map(i => `<div class="prod${i.hidden ? " off" : ""}">
+  $("#plist").innerHTML = list.length ? list.map(i => `<div class="prod${i.hidden || i.cat_hidden ? " off" : ""}">
       ${i.photo ? `<img src="${esc(i.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">` : '<div class="ph"></div>'}
-      <div><div class="nm">${esc(i.name)}</div><div class="ct">${esc(i.category)}${i.qty != null && i.in_stock ? " · qoldiq " + fmtN(i.qty) : ""}</div></div>
+      <div><div class="nm">${esc(i.name)}</div><div class="ct">${esc(i.category)}${i.qty != null && i.in_stock ? " · qoldiq " + fmtN(i.qty) : ""}${i.cat_hidden ? '<span class="ctag">kategoriya yashirilgan</span>' : ""}</div>${i.serial ? `<small class="sn">🔢 ${esc(i.serial)}</small>` : ""}</div>
       <div class="pr">${i.in_stock ? (i.promo ? `<b>${money(i.promo, i.currency)}</b> <s class="muted">${money(i.price, i.currency)}</s>` : `<b>${money(i.price, i.currency)}</b>`) : ""}</div>
       <label class="sw" title="${i.hidden ? "Yashirilgan" : "Mini App'da ko'rinadi"}"><input type="checkbox" data-id="${esc(i.id)}"${i.hidden ? "" : " checked"} aria-label="Mini App'da ko'rsatish: ${esc(i.name)}"><span></span></label>
     </div>`).join("") : `<div class="empty">${pst.items.length ? "Topilmadi" : "Tovarlar hali yuklanmadi — «Billz'dan yangilash» ni bosing"}</div>`;

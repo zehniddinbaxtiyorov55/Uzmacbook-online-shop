@@ -231,6 +231,20 @@ def hidden_ids():
     return {r["product_id"] for r in q("SELECT product_id FROM hidden")}
 
 
+def hidden_cats():
+    """Mini App'da butunlay ko'rinmaydigan kategoriyalar (sozlamalarda JSON ro'yxat)."""
+    try:
+        return set(json.loads(get_setting("hidden_cats") or "[]"))
+    except ValueError:
+        return set()
+
+
+def set_hidden_cat(name, hidden):
+    cats = hidden_cats()
+    (cats.add if hidden else cats.discard)(name)
+    set_setting("hidden_cats", json.dumps(sorted(cats), ensure_ascii=False) if cats else "")
+
+
 def set_hidden(pid, name, hidden):
     if hidden:
         run("INSERT OR REPLACE INTO hidden(product_id, name, at) VALUES(?,?,?)", (pid, name, now()))

@@ -192,14 +192,14 @@ def to_item(p):
     if price <= 0 or (stocks and qty <= 0):
         return None
 
-    details = []
-    for f in p.get("custom_fields") or []:
-        k, v = str(f.get("custom_field_name") or ""), f.get("custom_field_value")
-        if v not in (None, "", []) and not any(s in k.lower() for s in SKIP):
-            details.append([k, str(v)])
-    for a in p.get("product_attributes") or []:
-        if a.get("attribute_value"):
-            details.append([str(a.get("attribute_name") or ""), str(a["attribute_value"])])
+    details, serial = [], []  # serial (seriya/IMEI) — faqat menejerga, Mini App'ga yuborilmaydi
+    pairs = [(f.get("custom_field_name"), f.get("custom_field_value")) for f in p.get("custom_fields") or []]
+    pairs += [(a.get("attribute_name"), a.get("attribute_value")) for a in p.get("product_attributes") or []]
+    for k, v in pairs:
+        k = str(k or "")
+        if v in (None, "", []):
+            continue
+        (serial if any(s in k.lower() for s in SKIP) else details).append([k, str(v)])
     cats = [c["name"] for c in p.get("categories") or [] if c.get("name")]
     mkey, mlabel = model_photos.key_of(name, details, cats[-1] if cats else "")
     return {
@@ -214,13 +214,28 @@ def to_item(p):
         "mac": is_mac(name, cats[-1] if cats else "", details),
         "mkey": mkey, "mlabel": mlabel,
         "details": details[:12],
+        "_serial": serial,  # "_" bilan boshlanganlar Mini App'ga chiqmaydi (products() da olib tashlanadi)
     }
 
 
+def serial_text(item):
+    """'Seriya raqami: C02XYZ' — buyurtma xabari va admin panel uchun."""
+    return " · ".join("%s: %s" % (k, v) for k, v in item.get("_serial") or [])
+
+
 def visible(items):
-    """Admin panelda yashirilgan tovarlarsiz."""
-    hidden = db.hidden_ids()
-    return [i for i in items if i["id"] not in hidden] if hidden else items
+    """Admin panelda yashirilgan tovarlar va kategoriyalarsiz."""
+    hidden, cats = db.hidden_ids(), db.hidden_cats()
+    if not (hidden or cats):
+        return items
+    return [i for i in items if i["id"] not in hidden and i["category"] not in cats]
+
+
+def public(i):
+    """Mini App'ga boradigan ko'rinish: maxfiy maydonlarsiz (seriya va h.k.) + model rasmlari."""
+    out = {k: v for k, v in i.items() if not k.startswith("_")}
+    out["mphotos"] = model_photos.urls(i.get("mkey") or "")
+    return out
 
 
 async def load():
@@ -319,7 +334,7 @@ async def products(_):
         except Exception:
             pass
         rate, rdate = usd_rate()
-    items = [dict(i, mphotos=model_photos.urls(i.get("mkey") or "")) for i in visible(await load())]
+    items = [public(i) for i in visible(await load())]
     return web.json_response({"items": items, "plan": plan(), "usd_uzs": rate,
                               "rate_date": rdate},
                              headers={"Cache-Control": "no-store"})
@@ -363,12 +378,14 @@ async def order(req):
         months = 0
 
     totals, downs, monthlies = {}, {}, {}
-    lines = []
+    lines, admin_lines = [], []  # mijozga — seriyasiz, menejerga — seriya bilan
     for it in chosen:
         pr = it["promo"] or it["price"]
         c = it["currency"]
         totals[c] = totals.get(c, 0) + pr
         lines.append("• %s — %s" % (it["name"], money(pr, c)))
+        sn = serial_text(it)
+        admin_lines.append(lines[-1] + ("\n   🔢 %s" % sn if sn else ""))
         if months and it.get("mac"):
             d, mo, _ = plan_calc(pr, months, p)
             downs[c] = downs.get(c, 0) + d
@@ -391,10 +408,11 @@ async def order(req):
     oid = db.add_order(
         uid, who.strip(), user.get("username") or "", raw_phone,
         [{"id": it["id"], "name": it["name"], "price": it["promo"] or it["price"],
-          "currency": it["currency"], "mac": bool(it.get("mac"))} for it in chosen],
+          "currency": it["currency"], "mac": bool(it.get("mac")), "serial": serial_text(it)}
+         for it in chosen],
         totals, months, pay)
     text = ("🛒 Yangi buyurtma №%s (Mini App)\n\nMijoz: %s (%s)\nTelefon: %s\nID: %s\n\n%s\n\nJami: %s\n%s"
-            % (oid, who.strip(), uname, phone or "—", user.get("id"), "\n".join(lines),
+            % (oid, who.strip(), uname, phone or "—", user.get("id"), "\n".join(admin_lines),
                join(totals), pay))
     if ADMIN_HOST:
         text += "\n\nAdmin panel: https://%s/admin#orders" % ADMIN_HOST
