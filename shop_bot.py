@@ -1,5 +1,5 @@
-"""Do'kon boti: Mini App (Billz tovarlari), /start, /id, /kanal, /hisobot (kunlik savdo hisoboti).
-Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
+"""Do'kon boti: Mini App (Billz tovarlari), /start, /id, /kanal, /hisobot (kunlik savdo hisoboti),
+admin panel (admin.py). Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
 import asyncio, hashlib, logging, os, re
 import aiohttp
 from aiohttp import web
@@ -8,7 +8,10 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
                            ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, WebAppInfo)
+import admin
+import db
 import report
+import settings
 import webapp
 
 logging.basicConfig(level=logging.INFO)
@@ -85,7 +88,7 @@ WARRANTY_TEXT = (
     "• Tovar tavsifga mos kelib, olishdan bosh tortsangiz — oldindan to'lov qaytarilmaydi.\n\n"
     "Kafolat tugagandan keyingi yordam: \U0001F527 24/7 Servis.")
 
-# 24/7 servis matnini Render > Environment > SERVICE_TEXT orqali qo'yish mumkin
+# 24/7 servis matni: standart shu yerda, admin panel > Sozlamalar orqali o'zgartiriladi
 SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
     "\U0001F527 24/7 Servis\n\n"
     "Bizdan MacBook olgan bo'lsangiz, servis (ta'mirlash) xarajatlarini do'kon "
@@ -101,7 +104,7 @@ SERVICE_TEXT = os.environ.get("SERVICE_TEXT", "").strip() or (
     "Muammo chiqsa, kunning istalgan vaqtida ✍ Savollar va takliflar orqali "
     "yozing — yordam beramiz.")
 
-INFO = {"install": INSTALL_TEXT, "warranty": WARRANTY_TEXT, "service": SERVICE_TEXT}
+INFO_KEYS = ("install", "warranty", "service")
 
 cashback_pending = set()  # cashback uchun raqam kutilayotgan user_id lar
 cashback_info = {}        # user_id -> oxirgi balans ma'lumoti ("Nega cashback yo'q?" uchun)
@@ -126,6 +129,12 @@ NOT_BOUGHT = (
     "\U0001F447 O'zingizga mos MacBookni \U0001F6CD Online do'kondan tanlang.\n\n"
     "(Agar bizdan xarid qilgan bo'lsangiz, xaridda boshqa raqam yozilgan bo'lishi mumkin — "
     "✍ Savollar va takliflar orqali yozing.)")
+
+
+# Admin panelda o'zgartirilmagan bo'lsa shu matnlar ishlatiladi
+settings.DEFAULTS.update(
+    welcome=WELCOME, install=INSTALL_TEXT, warranty=WARRANTY_TEXT, service=SERVICE_TEXT,
+    cashback_how=CASHBACK_HOW, not_bought=NOT_BOUGHT, questions_contact=QUESTIONS_CONTACT)
 
 
 def parse_cashback(text):
@@ -179,6 +188,21 @@ def why_no_cashback(info):
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 dp.message.outer_middleware(report.remember_mw)  # hisobot @username orqali topilishi uchun
+
+
+async def track_mw(handler, event, data):
+    """Botga yozgan / tugma bosgan har bir mijozni bazaga yozadi (admin panel va xabar yuborish uchun)."""
+    try:
+        chat = getattr(getattr(event, "message", None) or event, "chat", None)
+        if chat is None or chat.type == "private":
+            db.touch_user(getattr(event, "from_user", None))
+    except Exception:
+        log.exception("BOT: mijozni bazaga yozib bo'lmadi")
+    return await handler(event, data)
+
+
+dp.message.outer_middleware(track_mw)
+dp.callback_query.outer_middleware(track_mw)
 billz = {"token": ""}
 
 
@@ -256,7 +280,8 @@ def main_menu():
         InlineKeyboardButton(text="💰 Cashbackim", callback_data="cash:start"),
     ])
     rows.append([InlineKeyboardButton(
-        text="✍️ Savollar va takliflar", url="https://t.me/%s" % QUESTIONS_CONTACT)])
+        text="✍️ Savollar va takliflar",
+        url="https://t.me/%s" % (settings.get("questions_contact") or QUESTIONS_CONTACT).lstrip("@"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -285,12 +310,13 @@ async def fetch_cashback(phone):
 
 @dp.message(CommandStart())
 async def on_start(m: Message):
-    await m.answer(WELCOME, reply_markup=main_menu())
+    await m.answer(settings.get("welcome"), reply_markup=main_menu())
 
 
 @dp.callback_query(F.data.startswith("info:"))
 async def on_info(c: CallbackQuery):
-    text = INFO.get(c.data.split(":", 1)[1])
+    key = c.data.split(":", 1)[1]
+    text = settings.get(key) if key in INFO_KEYS else None
     if text:
         try:
             await c.message.edit_text(text, reply_markup=back_kb())
@@ -302,9 +328,9 @@ async def on_info(c: CallbackQuery):
 @dp.callback_query(F.data == "menu")
 async def on_menu(c: CallbackQuery):
     try:
-        await c.message.edit_text(WELCOME, reply_markup=main_menu())
+        await c.message.edit_text(settings.get("welcome"), reply_markup=main_menu())
     except Exception:
-        await c.message.answer(WELCOME, reply_markup=main_menu())
+        await c.message.answer(settings.get("welcome"), reply_markup=main_menu())
     await c.answer()
 
 
@@ -314,7 +340,7 @@ async def on_cash(c: CallbackQuery):
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📱 Raqamni yuborish", request_contact=True)]],
         resize_keyboard=True, one_time_keyboard=True)
-    await c.message.answer(CASHBACK_HOW, reply_markup=kb)
+    await c.message.answer(settings.get("cashback_how"), reply_markup=kb)
     await c.answer()
 
 
@@ -337,7 +363,7 @@ async def on_id(m: Message):
 @dp.message(Command("kanal"))
 async def on_kanal(m: Message, command: CommandObject):
     if not webapp.ADMIN:
-        await m.answer("Avval Render → Environment ga ADMIN_CHAT_ID = %s qo'shing." % m.chat.id)
+        await m.answer("Avval server sozlamalariga (.env) ADMIN_CHAT_ID=%s qo'shing." % m.chat.id)
         return
     if str(m.chat.id) != webapp.ADMIN.strip():
         await m.answer("Bu buyruq faqat do'kon egasi uchun.")
@@ -365,7 +391,7 @@ async def on_contact(m: Message):
         await m.answer("Iltimos, faqat o'zingizning raqamingizni yuboring.")
         return
     phone = "+" + "".join(ch for ch in c.phone_number if ch.isdigit())
-    webapp.PHONES[m.from_user.id] = phone
+    db.set_phone(m.from_user.id, phone)
     log.info("BOT: telefon qabul qilindi: user %s", m.from_user.id)
     if m.from_user.id in cashback_pending:
         cashback_pending.discard(m.from_user.id)
@@ -379,7 +405,7 @@ async def on_contact(m: Message):
         info = parse_cashback(text)
         if not info["found"]:
             await m.answer("Tekshirdim 👌", reply_markup=ReplyKeyboardRemove())
-            await m.answer(NOT_BOUGHT, reply_markup=main_menu())
+            await m.answer(settings.get("not_bought"), reply_markup=main_menu())
             return
         cashback_info[m.from_user.id] = info
         await m.answer(text, reply_markup=ReplyKeyboardRemove())
@@ -402,34 +428,60 @@ async def on_hisobot(m: Message, command: CommandObject):
 
 @dp.message()
 async def on_any(m: Message):
-    await m.answer(WELCOME, reply_markup=main_menu())
+    await m.answer(settings.get("welcome"), reply_markup=main_menu())
+
+
+async def go_live(secret):
+    """Webhook va menyu tugmasini faqat o'z HTTPS manzilimiz ishlayotganda o'rnatamiz.
+    Domen/SSL hali tayyor bo'lmasa, eski server (Render) ishlashda davom etadi, biz esa
+    har 30 soniyada tekshirib turamiz."""
+    url = webapp.URL + "api/alive"
+    warned = False
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as s:
+        while True:
+            try:
+                async with s.get(url) as r:
+                    if r.status == 200 and (await r.text()).strip() == webapp.ALIVE:
+                        break
+                    err = "status %s" % r.status
+            except Exception as e:
+                err = repr(e)
+            if not warned:
+                log.warning("BOT: %s hali ochilmayapti (%s). Domen DNS va SSL tayyor bo'lishini "
+                            "kutyapman, har 30 soniyada tekshiraman.", url, err[:150])
+                warned = True
+            await asyncio.sleep(30)
+    await bot.set_webhook(webapp.URL + "tg/" + secret, secret_token=secret,
+                          allowed_updates=dp.resolve_used_update_types())
+    await webapp.set_menu(bot)
+    log.info("BOT: webhook rejimi yoqildi: %s", webapp.URL)
 
 
 async def main():
+    db.conn()
+    db.mark_stuck_broadcasts()
     app = webapp.make_app(bot, billz_products, num)
     try:
         report.setup(app, bot, billz_login, billz, BILLZ_URL, BILLZ_PLATFORM, num, webapp.URL, webapp.ADMIN)
     except Exception:
         log.exception("BOT: kunlik hisobotni ulab bo'lmadi")
+    admin.setup(app, bot, main_menu)
     secret = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32]
     if webapp.URL:
-        # Webhook: Telegram xabari kelganda server o'zi uyg'onadi (Render bepul tarifi uchun)
         SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=secret).register(
             app, path="/tg/" + secret)
     runner = web.AppRunner(app)
     await runner.setup()
+    host = os.environ.get("HOST", "0.0.0.0")  # serverda 127.0.0.1 — tashqaridan faqat Caddy (HTTPS) orqali
     port = int(os.environ.get("PORT", "8080"))
-    await web.TCPSite(runner, "0.0.0.0", port).start()
-    log.info("BOT: server port %s da ishga tushdi", port)
-    await webapp.set_menu(bot)
+    await web.TCPSite(runner, host, port).start()
+    log.info("BOT: server %s:%s da ishga tushdi", host, port)
     try:
-        report.start()  # har kuni 22:00 hisobot + server uxlab qolmasligi
+        report.start()  # har kuni 22:00 hisobot
     except Exception:
         log.exception("BOT: kunlik hisobot jadvalini ishga tushirib bo'lmadi")
     if webapp.URL:
-        await bot.set_webhook(webapp.URL + "tg/" + secret, secret_token=secret,
-                              allowed_updates=dp.resolve_used_update_types())
-        log.info("BOT: webhook rejimi: %s", webapp.URL)
+        asyncio.create_task(go_live(secret))
         asyncio.create_task(webapp.load())
         webapp.usd_rate()  # kursni orqa fonda yuklashni boshlaydi
         await asyncio.Event().wait()

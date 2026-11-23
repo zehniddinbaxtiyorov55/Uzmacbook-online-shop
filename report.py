@@ -8,7 +8,7 @@ to'lov turlari jami, kategoriyalar va oy boshidan jami. Mijoz ismi/telefoni yozi
 Botga istalgan payt yozish mumkin: /hisobot, /hisobot kecha, /hisobot 25.10
 (/hisobot maydonlar - Billz maydon nomlarini ko'rsatadi, sozlash uchun)
 
-Render -> Environment (hammasi ixtiyoriy):
+Server sozlamalari (.env, hammasi ixtiyoriy):
   REPORT_TO    - kimga: @username yoki Telegram ID, vergul bilan. Standart: @baxtiyorov_zz
                  (u odam botga kamida bir marta /start bosgan bo'lishi kerak)
   REPORT_HOUR  - soat, Toshkent vaqti. Standart: 22
@@ -617,7 +617,7 @@ async def on_command(m, args):
     if str(m.chat.id) not in numeric and str(m.chat.id) != admin and m.chat.id not in tip_sent:
         tip_sent.add(m.chat.id)
         await send(m.chat.id, "Kunlik hisobot har kuni %s:00 da shu yerga keladi. Doim ishonchli kelishi uchun "
-                              "Render → Environment ga REPORT_TO = %s deb yozib qo'ying." % (HOUR, m.chat.id))
+                              "server sozlamalariga (.env) REPORT_TO=%s deb yozib qo'ying." % (HOUR, m.chat.id))
     return True
 
 

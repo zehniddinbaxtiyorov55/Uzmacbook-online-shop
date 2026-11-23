@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Magic Pro — Admin panel</title>
+<link rel="icon" href="/logo.png">
+<style>
+:root{
+  --bg:#f5f5f7; --card:#fff; --tx:#1d1d1f; --tx2:#6e6e73; --tx3:#86868b; --line:#e5e5ea; --soft:#f2f2f4;
+  --ink:#1d1d1f; --ink-tx:#fff; --blue:#0071e3; --green:#1a7f37; --green-bg:#e8f5ec; --orange:#b25000; --orange-bg:#fff2e5;
+  --red:#c9302c; --red-bg:#fdecec; --gray-bg:#efeff1; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  --bar:#0071e3;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000; --card:#1c1c1e; --tx:#f5f5f7; --tx2:#a1a1a6; --tx3:#8e8e93; --line:#2c2c2e; --soft:#2c2c2e;
+  --ink:#f5f5f7; --ink-tx:#000; --blue:#2997ff; --green:#4cc76a; --green-bg:#16301d; --orange:#ffa24d; --orange-bg:#3a2510;
+  --red:#ff6b63; --red-bg:#3a1614; --gray-bg:#2c2c2e; --shadow:none; --bar:#2997ff;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,Roboto,sans-serif;
+  letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Inter,Roboto,sans-serif;letter-spacing:-.015em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--blue);text-decoration:none}
+[hidden]{display:none!important}
+
+/* ---- login ---- */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.lcard{width:100%;max-width:360px;background:var(--card);border-radius:20px;padding:32px 28px;box-shadow:var(--shadow)}
+.lcard img{width:120px;display:block;margin:0 auto 6px}
+.lcard h1{text-align:center;font-size:20px;margin-bottom:22px}
+.lcard label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 6px}
+.lcard .btn{width:100%;margin-top:20px;height:44px}
+.err{color:var(--red);font-size:13px;margin-top:12px;min-height:18px;text-align:center}
+
+/* ---- maydonlar ---- */
+.in{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:0 12px;outline:none;transition:border-color .15s}
+.in:focus{border-color:var(--blue)}
+textarea.in{height:auto;min-height:90px;padding:10px 12px;resize:vertical;line-height:1.45}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 16px;border-radius:10px;border:0;background:var(--ink);color:var(--ink-tx);font-weight:600;white-space:nowrap}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:var(--soft);color:var(--tx)}
+.btn.blue{background:var(--blue);color:#fff}
+.btn.sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+
+/* ---- karkas ---- */
+#app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.side{background:var(--card);border-right:1px solid var(--line);padding:20px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.side .logo{display:flex;align-items:center;gap:10px;padding:4px 10px 18px}
+.side .logo img{width:84px}
+.side .logo span{font-size:11px;color:var(--tx3);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--tx);font-weight:500}
+.nav a:hover{background:var(--soft)}
+.nav a.on{background:var(--ink);color:var(--ink-tx)}
+.nav a .ico{width:20px;text-align:center}
+.nav a .cnt{margin-left:auto;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:0 7px;line-height:18px}
+.nav a .cnt:empty{display:none}
+.side .foot{margin-top:auto;padding:10px;font-size:12px;color:var(--tx3);display:flex;flex-direction:column;gap:8px}
+.side .foot button{background:none;border:0;color:var(--tx2);text-align:left;padding:0}
+main{min-width:0;padding:28px 32px 80px;max-width:1180px;width:100%}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.head h1{font-size:26px;font-weight:700}
+.head .act{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---- kartochkalar ---- */
+.card{background:var(--card);border-radius:16px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h3{font-size:16px;font-weight:650;margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card h3 small{font-size:12px;color:var(--tx3);font-weight:400}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);display:block;color:var(--tx)}
+.kpi .l{font-size:12px;color:var(--tx2);font-weight:500}
+.kpi .v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .s{font-size:12px;color:var(--tx3)}
+.kpi.hot{background:var(--ink);color:var(--ink-tx)}
+.kpi.hot .l,.kpi.hot .s{color:inherit;opacity:.75}
+.muted{color:var(--tx3)}
+.empty{text-align:center;color:var(--tx3);padding:40px 10px}
+
+/* ---- grafik ---- */
+.chart{position:relative;height:170px;display:grid;grid-template-columns:repeat(14,1fr);gap:6px;align-items:end;padding-top:10px;border-bottom:1px solid var(--line)}
+.chart .gl{position:absolute;left:0;right:0;border-top:1px dashed var(--line);font-size:10px;color:var(--tx3)}
+.chart .gl span{position:absolute;right:0;top:-14px}
+.bcol{height:100%;display:flex;align-items:flex-end;justify-content:center;position:relative;cursor:default}
+.bcol:hover{background:var(--soft);border-radius:6px 6px 0 0}
+.bar{width:min(22px,70%);background:var(--bar);border-radius:4px 4px 0 0;min-height:0}
+.bcol .tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:var(--ink);color:var(--ink-tx);font-size:12px;padding:5px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:2}
+.bcol:hover .tip,.bcol:focus .tip{opacity:1}
+.xl{display:grid;grid-template-columns:repeat(14,1fr);gap:6px;font-size:10px;color:var(--tx3);text-align:center;margin-top:6px}
+
+/* ---- ro'yxatlar ---- */
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.tools .in{max-width:320px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.chip.on{background:var(--ink);color:var(--ink-tx);border-color:var(--ink)}
+.chip b{font-weight:700;opacity:.7}
+.order{background:var(--card);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:10px;display:grid;grid-template-columns:1fr 260px;gap:16px}
+.order .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.order .no{font-weight:700;font-size:15px}
+.order .who{font-weight:600}
+.order ul{list-style:none;margin:8px 0;display:flex;flex-direction:column;gap:3px}
+.order li{display:flex;justify-content:space-between;gap:10px}
+.order .tot{font-weight:650;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;display:flex;justify-content:space-between}
+.order .pay{white-space:pre-line;font-size:12px;color:var(--tx2);margin-top:6px}
+.order .side2{display:flex;flex-direction:column;gap:8px}
+.order textarea.in{min-height:70px;font-size:13px}
+.pill{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;font-size:12px;font-weight:600}
+.st-new{background:var(--orange-bg);color:var(--orange)}
+.st-contacted{background:#e8f0fe;color:var(--blue)}
+.st-sold{background:var(--green-bg);color:var(--green)}
+.st-cancelled{background:var(--gray-bg);color:var(--tx2)}
+@media (prefers-color-scheme:dark){.st-contacted{background:#11284a}}
+select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--tx2) 50%),linear-gradient(135deg,var(--tx2) 50%,transparent 50%);background-position:calc(100% - 16px) 17px,calc(100% - 11px) 17px;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+.more{display:flex;justify-content:center;margin-top:8px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--tx2);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;background:var(--card);border-radius:14px;box-shadow:var(--shadow)}
+.tw table{min-width:720px}
+
+/* ---- tovarlar ---- */
+.prod{display:grid;grid-template-columns:52px 1fr auto auto;gap:14px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
+.prod:last-child{border-bottom:0}
+.prod img,.prod .ph{width:52px;height:52px;border-radius:10px;object-fit:contain;background:var(--soft)}
+.prod .nm{font-weight:600}
+.prod .ct{font-size:12px;color:var(--tx3)}
+.prod .pr{text-align:right;white-space:nowrap}
+.prod.off .nm,.prod.off img{opacity:.45}
+.sw{position:relative;width:46px;height:28px;flex:none}
+.sw input{opacity:0;width:0;height:0}
+.sw span{position:absolute;inset:0;background:var(--line);border-radius:14px;transition:.2s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:24px;height:24px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw input:checked+span{background:var(--green)}
+.sw input:checked+span:before{transform:translateX(18px)}
+.sw input:focus-visible+span{outline:2px solid var(--blue);outline-offset:2px}
+
+/* ---- sozlamalar ---- */
+.field{margin-bottom:18px}
+.field .fl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+.field label{font-weight:600}
+.field .hint{font-size:12px;color:var(--tx3);margin-top:4px}
+.field .reset{background:none;border:0;color:var(--blue);font-size:12px}
+.tag{font-size:11px;color:var(--orange);background:var(--orange-bg);border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.savebar{position:sticky;bottom:16px;display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.savebar .btn{box-shadow:0 6px 20px rgba(0,0,0,.18);height:44px;padding:0 22px}
+
+/* ---- xabar yuborish ---- */
+.bc{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.preview{background:#e7ebf0;border-radius:16px;padding:16px;min-height:120px}
+@media (prefers-color-scheme:dark){.preview{background:#0e1621}}
+.bubble{background:var(--card);border-radius:14px 14px 14px 4px;overflow:hidden;max-width:100%;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.bubble img{display:block;width:100%;max-height:260px;object-fit:cover}
+.bubble .t{padding:9px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:14px}
+.bubble .t:empty{display:none}
+.tgbtn{margin-top:4px;background:rgba(255,255,255,.55);border-radius:10px;text-align:center;padding:8px;font-weight:600;font-size:13px;color:#1d1d1f}
+@media (prefers-color-scheme:dark){.tgbtn{background:rgba(255,255,255,.12);color:#f5f5f7}}
+.check{display:flex;align-items:center;gap:8px;margin:12px 0;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--blue)}
+.progress{height:8px;background:var(--soft);border-radius:4px;overflow:hidden;margin:10px 0 6px}
+.progress div{height:100%;background:var(--blue);border-radius:4px;transition:width .4s}
+.hist{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.hist:last-child{border-bottom:0}
+.hist .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.counter{font-size:12px;color:var(--tx3);text-align:right;margin-top:4px}
+.counter.bad{color:var(--red)}
+
+/* ---- toast ---- */
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--ink-tx);padding:11px 18px;border-radius:12px;font-weight:500;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.bad{background:var(--red);color:#fff}
+
+/* ---- telefon ---- */
+@media (max-width:900px){
+  #app{grid-template-columns:minmax(0,1fr)}
+  .side{position:sticky;top:0;height:auto;z-index:10;flex-direction:row;align-items:center;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line);gap:8px}
+  .side .logo{padding:0 4px}
+  .side .logo img{width:60px}
+  .side .logo span{display:none}
+  .nav{flex-direction:row;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+  .side{min-width:0}
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{white-space:nowrap;padding:7px 10px;font-size:13px}
+  .nav a .ico{display:none}
+  .side .foot{display:none}
+  main{padding:18px 14px 80px}
+  .head h1{font-size:22px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi .v{font-size:22px}
+  .order{grid-template-columns:1fr}
+  .bc{grid-template-columns:1fr}
+  .grid2{grid-template-columns:1fr}
+  .prod{grid-template-columns:44px 1fr auto;gap:10px}
+  .prod img,.prod .ph{width:44px;height:44px}
+  .prod .pr{grid-column:2;text-align:left;font-size:13px}
+  .prod .sw{grid-row:1;grid-column:3}
+  .tools .in{max-width:none;flex:1;min-width:160px}
+}
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <form class="lcard" id="lform" autocomplete="on">
+    <img src="/logo.png" alt="Magic Pro">
+    <h1>Admin panel</h1>
+    <label for="lu">Login</label>
+    <input class="in" id="lu" name="username" autocomplete="username" required>
+    <label for="lp">Parol</label>
+    <input class="in" id="lp" name="password" type="password" autocomplete="current-password" required>
+    <button class="btn" id="lbtn">Kirish</button>
+    <div class="err" id="lerr"></div>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside class="side">
+    <div class="logo"><img src="/logo.png" alt="Magic Pro"><span>admin</span></div>
+    <nav class="nav" id="nav">
+      <a href="#dashboard" data-v="dashboard"><span class="ico">◎</span>Bosh sahifa</a>
+      <a href="#orders" data-v="orders"><span class="ico">🛒</span>Buyurtmalar<span class="cnt" id="newcnt"></span></a>
+      <a href="#users" data-v="users"><span class="ico">👥</span>Mijozlar</a>
+      <a href="#broadcast" data-v="broadcast"><span class="ico">📣</span>Xabar yuborish</a>
+      <a href="#products" data-v="products"><span class="ico">💻</span>Tovarlar</a>
+      <a href="#settings" data-v="settings"><span class="ico">⚙️</span>Matn va sozlamalar</a>
+    </nav>
+    <div class="foot">
+      <a id="botlink" target="_blank" rel="noopener"></a>
+      <button id="logout">Chiqish</button>
+    </div>
+  </aside>
+  <main>
+    <div class="head"><h1 id="title"></h1><div class="act" id="act"></div></div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const view = $("#view");
+const TZ = "Asia/Tashkent";
+const STATUS = {new: "Yangi", contacted: "Bog'lanildi", sold: "Sotildi", cancelled: "Bekor"};
+const TITLES = {dashboard: "Bosh sahifa", orders: "Buyurtmalar", users: "Mijozlar", broadcast: "Xabar yuborish",
+                products: "Tovarlar", settings: "Matn va sozlamalar"};
+let current = "", timer = null;
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+function fmtN(v) {
+  const n = Number(v) || 0;
+  return (Math.round(n * 100) / 100).toLocaleString("ru-RU").replace(/,/g, ".");
+}
+function cur(c) { return (!c || /^(usd|\$)$/i.test(c)) ? "$" : "so'm"; }
+function money(v, c) { return fmtN(v) + " " + cur(c); }
+function moneyObj(o) {
+  const parts = Object.entries(o || {}).filter(([, v]) => v).map(([c, v]) => money(v, c));
+  return parts.length ? parts.join(" + ") : "0 $";
+}
+function when(t, short) {
+  if (!t) return "—";
+  const o = short ? {day: "2-digit", month: "2-digit", timeZone: TZ}
+                  : {day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TZ};
+  return new Date(t * 1000).toLocaleString("ru-RU", o).replace(",", "");
+}
+function ago(t) {
+  if (!t) return "—";
+  const s = Date.now() / 1000 - t;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + " daqiqa oldin";
+  if (s < 86400) return Math.round(s / 3600) + " soat oldin";
+  if (s < 86400 * 30) return Math.round(s / 86400) + " kun oldin";
+  return when(t);
+}
+function toast(msg, bad) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "on" + (bad ? " bad" : "");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.className = "", bad ? 4500 : 2200);
+}
+function telLink(p) {
+  if (!p) return '<span class="muted">telefon yo\'q</span>';
+  const d = String(p).replace(/[^\d+]/g, "");
+  return `<a href="tel:${esc(d)}">${esc(p)}</a>`;
+}
+
+async function api(path, opts = {}) {
+  const o = Object.assign({credentials: "same-origin"}, opts);
+  if (o.body && !(o.body instanceof FormData) && typeof o.body !== "string") {
+    o.body = JSON.stringify(o.body);
+    o.headers = {"Content-Type": "application/json"};
+  }
+  if (o.body && !o.method) o.method = "POST";
+  const r = await fetch("/admin/api/" + path, o);
+  if (r.status === 401 && path !== "login") { showLogin(); throw new Error("Qayta kiring"); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.ok === false) throw new Error(d.error || ("Xato: " + r.status));
+  return d;
+}
+
+// ---------- kirish ----------
+function showLogin() {
+  clearInterval(timer);
+  $("#app").hidden = true;
+  $("#login").hidden = false;
+  setTimeout(() => $("#lu").focus(), 50);
+}
+$("#lform").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("#lerr").textContent = "";
+  $("#lbtn").disabled = true;
+  try {
+    await api("login", {body: {user: $("#lu").value, password: $("#lp").value}});
+    $("#lp").value = "";
+    start();
+  } catch (err) {
+    $("#lerr").textContent = err.message;
+  } finally { $("#lbtn").disabled = false; }
+});
+$("#logout").onclick = async () => { try { await api("logout", {method: "POST"}); } catch (e) {} showLogin(); };
+
+async function start() {
+  try { await api("me"); } catch (e) { showLogin(); return; }
+  $("#login").hidden = true;
+  $("#app").hidden = false;
+  route();
+  refreshBadge();
+  if (!window._badge) window._badge = setInterval(refreshBadge, 60000);
+}
+async function refreshBadge() {
+  try {
+    const d = await api("stats");
+    $("#newcnt").textContent = d.orders.by_status.new || "";
+    if (d.bot) { $("#botlink").textContent = "@" + d.bot; $("#botlink").href = "https://t.me/" + d.bot; }
+    return d;
+  } catch (e) {}
+}
+
+// ---------- marshrut ----------
+window.addEventListener("hashchange", route);
+function route() {
+  const v = (location.hash || "#dashboard").slice(1);
+  const name = VIEWS[v] ? v : "dashboard";
+  current = name;
+  clearInterval(timer);
+  document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.v === name));
+  $("#title").textContent = TITLES[name];
+  $("#act").innerHTML = "";
+  view.innerHTML = '<div class="empty">Yuklanmoqda…</div>';
+  VIEWS[name]().catch(err => { if (current === name) view.innerHTML = `<div class="empty">${esc(err.message)}</div>`; });
+}
+
+// ---------- bosh sahifa ----------
+function kpi(label, value, sub, href, hot) {
+  const tag = href ? "a" : "div";
+  return `<${tag} class="kpi${hot ? " hot" : ""}"${href ? ` href="${href}"` : ""}>
+    <div class="l">${esc(label)}</div><div class="v" title="${esc(value)}">${esc(value)}</div><div class="s">${esc(sub || "")}</div></${tag}>`;
+}
+function chart(days) {
+  const max = Math.max(1, ...days.map(d => d.orders));
+  const step = max <= 4 ? 1 : Math.ceil(max / 4);
+  const top = Math.ceil(max / step) * step;
+  let grid = "";
+  for (let v = step; v <= top; v += step)
+    grid += `<div class="gl" style="bottom:${v / top * 100}%"><span>${v}</span></div>`;
+  const cols = days.map(d => {
+    const h = d.orders ? Math.max(3, d.orders / top * 100) : 0;
+    const lab = `${when(d.day, true)}: ${d.orders} ta buyurtma`;
+    return `<div class="bcol" tabindex="0" aria-label="${esc(lab)}"><div class="bar" style="height:${h}%"></div><div class="tip">${esc(lab)}</div></div>`;
+  }).join("");
+  const xl = days.map((d, i) => `<span>${i % 2 === 1 || i === days.length - 1 ? esc(when(d.day, true)) : ""}</span>`).join("");
+  return `<div class="chart" role="img" aria-label="Oxirgi 14 kundagi buyurtmalar soni">${grid}${cols}</div><div class="xl">${xl}</div>`;
+}
+function orderMini(o) {
+  return `<a class="hist" href="#orders" style="color:inherit">
+    <span class="tx"><b>№${o.id}</b> · ${esc(o.name || "—")} · ${esc(o.items.map(i => i.name).join(", "))}</span>
+    <span><span class="pill st-${o.status}">${STATUS[o.status]}</span> <span class="muted">${ago(o.created_at)}</span></span></a>`;
+}
+async function dashboard() {
+  const d = await api("stats");
+  $("#newcnt").textContent = d.orders.by_status.new || "";
+  const p = d.products, shown = p.total - p.hidden;
+  view.innerHTML = `
+  <div class="kpis">
+    ${kpi("Yangi buyurtmalar", d.orders.by_status.new, "javob kutyapti", "#orders", d.orders.by_status.new > 0)}
+    ${kpi("Bugun", d.orders.today, "ta buyurtma")}
+    ${kpi("Oxirgi 7 kun", d.orders.week, "ta buyurtma")}
+    ${kpi("30 kunda sotildi", moneyObj(d.orders.sold_month), "«Sotildi» deb belgilanganlar")}
+    ${kpi("Mijozlar", fmtN(d.users.total), `bugun +${d.users.today} · 7 kunda +${d.users.week}`, "#users")}
+    ${kpi("Telefon qoldirgan", fmtN(d.users.phones), "ta mijoz")}
+    ${kpi("Mini App'dagi tovarlar", p.loaded ? shown : "…", p.hidden ? p.hidden + " ta yashirilgan" : "Billz'dan avtomatik", "#products")}
+    ${kpi("Dollar kursi", d.rate.rate ? fmtN(d.rate.rate) + " so'm" : "—", d.rate.date || "")}
+  </div>
+  <div class="card"><h3>Buyurtmalar — oxirgi 14 kun <small>jami ${d.orders.total} ta</small></h3>${chart(d.days)}</div>
+  <div class="card"><h3>Oxirgi buyurtmalar <a href="#orders" style="font-size:13px;font-weight:500">Hammasi →</a></h3>
+    ${d.recent.length ? d.recent.map(orderMini).join("") : '<div class="empty">Hali buyurtma yo\'q. Mini App orqali buyurtma kelganda shu yerda ko\'rinadi.</div>'}
+  </div>`;
+}
+
+// ---------- buyurtmalar ----------
+const ost = {status: "", q: "", items: [], total: 0};
+async function orders() {
+  const s = await refreshBadge();
+  const bs = s ? s.orders.by_status : {};
+  const all = s ? s.orders.total : "";
+  $("#act").innerHTML = `<a class="btn ghost sm" id="ocsv">⬇ Excel (CSV)</a>`;
+  view.innerHTML = `
+  <div class="tools">
+    <div class="chips" id="ochips">
+      ${[["", "Hammasi", all], ["new", "Yangi", bs.new], ["contacted", "Bog'lanildi", bs.contacted], ["sold", "Sotildi", bs.sold], ["cancelled", "Bekor", bs.cancelled]]
+        .map(([k, l, n]) => `<button class="chip${ost.status === k ? " on" : ""}" data-s="${k}">${l} <b>${n ?? ""}</b></button>`).join("")}
+    </div>
+    <input class="in" id="oq" placeholder="Qidirish: ism, telefon, tovar, №" value="${esc(ost.q)}">
+  </div>
+  <div id="olist"></div><div class="more" id="omore"></div>`;
+  document.querySelectorAll("#ochips .chip").forEach(b => b.onclick = () => { ost.status = b.dataset.s; orders(); });
+  let h;
+  $("#oq").oninput = e => { clearTimeout(h); h = setTimeout(() => { ost.q = e.target.value.trim(); loadOrders(true); }, 300); };
+  updateCsv();
+  await loadOrders(true);
+}
+function updateCsv() {
+  const a = $("#ocsv");
+  if (a) a.href = "/admin/api/orders.csv?" + new URLSearchParams({status: ost.status, q: ost.q});
+}
+async function loadOrders(reset) {
+  if (reset) { ost.items = []; }
+  updateCsv();
+  const d = await api("orders?" + new URLSearchParams({status: ost.status, q: ost.q, offset: ost.items.length}));
+  ost.items = ost.items.concat(d.items);
+  ost.total = d.total;
+  const list = $("#olist");
+  if (!list) return;
+  list.innerHTML = ost.items.length ? ost.items.map(orderCard).join("")
+    : `<div class="card empty">${ost.q || ost.status ? "Bu filtr bo'yicha buyurtma topilmadi." : "Hali buyurtma yo'q."}</div>`;
+  $("#omore").innerHTML = ost.items.length < ost.total ? `<button class="btn ghost" id="omb">Yana ko'rsatish (${ost.total - ost.items.length})</button>` : "";
+  if ($("#omb")) $("#omb").onclick = () => loadOrders(false);
+  list.querySelectorAll("select[data-id]").forEach(sel => sel.onchange = () => saveOrder(sel.dataset.id, {status: sel.value}, sel));
+  list.querySelectorAll("textarea[data-id]").forEach(ta => ta.onchange = () => saveOrder(ta.dataset.id, {note: ta.value}, ta));
+}
+function orderCard(o) {
+  const uname = o.username ? `<a href="https://t.me/${esc(o.username)}" target="_blank" rel="noopener">@${esc(o.username)}</a>`
+                           : `<a href="tg://user?id=${o.user_id}">Telegram profil</a>`;
+  return `<div class="order" id="o${o.id}">
+    <div>
+      <div class="top"><span class="no">№${o.id}</span><span class="pill st-${o.status}">${STATUS[o.status]}</span>
+        <span class="muted">${when(o.created_at)}</span></div>
+      <div><span class="who">${esc(o.name || "—")}</span> · ${uname} · ${telLink(o.phone)}</div>
+      <ul>${o.items.map(i => `<li><span>${esc(i.name)}</span><span>${money(i.price, i.currency)}</span></li>`).join("")}</ul>
+      <div class="tot"><span>Jami</span><span>${moneyObj(o.totals)}</span></div>
+      <div class="pay">${esc(o.pay || "")}</div>
+    </div>
+    <div class="side2">
+      <select class="in" data-id="${o.id}" aria-label="Holati">
+        ${Object.entries(STATUS).map(([k, l]) => `<option value="${k}"${k === o.status ? " selected" : ""}>${l}</option>`).join("")}
+      </select>
+      <textarea class="in" data-id="${o.id}" placeholder="Izoh (faqat adminlar ko'radi): qachon qo'ng'iroq qilindi, nima kelishildi…">${esc(o.note)}</textarea>
+    </div>
+  </div>`;
+}
+async function saveOrder(id, body, el) {
+  try {
+    const d = await api("orders/" + id, {body});
+    const i = ost.items.findIndex(x => x.id === d.item.id);
+    if (i >= 0) ost.items[i] = d.item;
+    if (body.status) {
+      const card = $("#o" + id);
+      const pill = card && card.querySelector(".pill");
+      if (pill) { pill.className = "pill st-" + d.item.status; pill.textContent = STATUS[d.item.status]; }
+      refreshBadge();
+    }
+    toast(body.status ? "Holat: " + STATUS[d.item.status] : "Izoh saqlandi");
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- mijozlar ----------
+const ust = {q: "", items: [], total: 0};
+async function users() {
+  $("#act").innerHTML = `<a class="btn ghost sm" id="ucsv">⬇ Excel (CSV)</a>`;
+  view.innerHTML = `<div class="tools"><input class="in" id="uq" placeholder="Qidirish: ism, @username, telefon" value="${esc(ust.q)}">
+    <span class="muted" id="ucount"></span></div><div id="ulist"></div><div class="more" id="umore"></div>`;
+  let h;
+  $("#uq").oninput = e => { clearTimeout(h); h = setTimeout(() => { ust.q = e.target.value.trim(); loadUsers(true); }, 300); };
+  await loadUsers(true);
+}
+async function loadUsers(reset) {
+  if (reset) ust.items = [];
+  $("#ucsv").href = "/admin/api/users.csv?" + new URLSearchParams({q: ust.q});
+  const d = await api("users?" + new URLSearchParams({q: ust.q, offset: ust.items.length}));
+  ust.items = ust.items.concat(d.items);
+  ust.total = d.total;
+  $("#ucount").textContent = d.total + " ta mijoz";
+  $("#ulist").innerHTML = ust.items.length ? `<div class="tw"><table>
+    <thead><tr><th>Mijoz</th><th>Telefon</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th>Buyurtma</th><th></th></tr></thead>
+    <tbody>${ust.items.map(u => `<tr>
+      <td><b>${esc(((u.first_name || "") + " " + (u.last_name || "")).trim() || "—")}</b><br>
+        ${u.username ? `<a href="https://t.me/${esc(u.username)}" target="_blank" rel="noopener">@${esc(u.username)}</a>` : `<span class="muted">ID ${u.id}</span>`}</td>
+      <td>${telLink(u.phone)}</td>
+      <td>${when(u.created_at)}</td>
+      <td>${ago(u.last_seen)}</td>
+      <td>${u.orders || "—"}</td>
+      <td>${u.blocked ? '<span class="pill st-cancelled">botni bloklagan</span>' : ""}</td>
+    </tr>`).join("")}</tbody></table></div>`
+    : `<div class="card empty">${ust.q ? "Topilmadi." : "Hali mijozlar yo'q. Botga /start bosgan har bir odam shu yerda ko'rinadi."}</div>`;
+  $("#umore").innerHTML = ust.items.length < ust.total ? `<button class="btn ghost" id="umb">Yana ko'rsatish (${ust.total - ust.items.length})</button>` : "";
+  if ($("#umb")) $("#umb").onclick = () => loadUsers(false);
+}
+
+// ---------- xabar yuborish ----------
+async function broadcast() {
+  const d = await api("broadcasts");
+  view.innerHTML = `
+  <div class="bc">
+    <div class="card">
+      <h3>Yangi xabar <small>${d.audience} ta mijozga boradi</small></h3>
+      <textarea class="in" id="btext" rows="7" placeholder="Masalan: Yangi MacBook Air M3 keldi! Narxi va bo'lib to'lash shartlari — Online do'konda 👇"></textarea>
+      <div class="counter" id="bcnt"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <label class="btn ghost sm" for="bphoto">🖼 Rasm qo'shish</label>
+        <input type="file" id="bphoto" accept="image/jpeg,image/png,image/webp" hidden>
+        <span class="muted" id="bpname"></span>
+        <button class="btn ghost sm" id="bprm" hidden>✕ Rasmni olib tashlash</button>
+      </div>
+      <label class="check"><input type="checkbox" id="bbtn" checked> Xabar tagiga «🛍 Online do'kon» tugmasini qo'shish</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost" id="btest">O'zimga sinab ko'rish</button>
+        <button class="btn blue" id="bsend">Hammaga yuborish (${d.audience} ta)</button>
+      </div>
+      <div class="hint muted" style="font-size:12px;margin-top:10px">«O'zimga sinab ko'rish» xabarni faqat buyurtmalar keladigan admin chatga yuboradi.</div>
+    </div>
+    <div>
+      <div class="preview"><div class="bubble"><img id="pvimg" hidden alt=""><div class="t" id="pvtext"></div></div>
+        <div class="tgbtn" id="pvbtn">🛍 Online do'kon</div></div>
+      <div class="muted" style="font-size:12px;margin:8px 4px 0">Telegram'da taxminan shunday ko'rinadi</div>
+    </div>
+  </div>
+  <div class="card" id="bjob"></div>`;
+  const upd = () => {
+    const t = $("#btext").value, hasP = !!$("#bphoto").files[0], lim = hasP ? 1024 : 4096;
+    $("#pvtext").textContent = t;
+    $("#pvbtn").hidden = !$("#bbtn").checked;
+    $("#bcnt").textContent = t.length + " / " + lim;
+    $("#bcnt").className = "counter" + (t.length > lim ? " bad" : "");
+  };
+  $("#btext").oninput = upd;
+  $("#bbtn").onchange = upd;
+  $("#bphoto").onchange = () => {
+    const f = $("#bphoto").files[0];
+    $("#pvimg").hidden = !f;
+    $("#bprm").hidden = !f;
+    $("#bpname").textContent = f ? f.name : "";
+    if (f) $("#pvimg").src = URL.createObjectURL(f);
+    upd();
+  };
+  $("#bprm").onclick = () => { $("#bphoto").value = ""; $("#bphoto").onchange(); };
+  upd();
+  const send = async test => {
+    const fd = new FormData();
+    fd.append("text", $("#btext").value);
+    fd.append("button", $("#bbtn").checked ? "1" : "0");
+    fd.append("test", test ? "1" : "0");
+    if ($("#bphoto").files[0]) fd.append("photo", $("#bphoto").files[0]);
+    if (!test && !confirm(`Xabar ${d.audience} ta mijozga yuboriladi. Davom etamizmi?`)) return;
+    const b = test ? $("#btest") : $("#bsend");
+    b.disabled = true;
+    try {
+      const r = await api("broadcast", {method: "POST", body: fd});
+      toast(test ? "Admin chatga yuborildi — Telegram'ni tekshiring" : `Yuborish boshlandi: ${r.total} ta mijoz`);
+      if (!test) { $("#btext").value = ""; $("#bphoto").value = ""; $("#bphoto").onchange(); jobs(); }
+    } catch (e) { toast(e.message, true); }
+    finally { b.disabled = false; }
+  };
+  $("#btest").onclick = () => send(true);
+  $("#bsend").onclick = () => send(false);
+  renderJobs(d);
+  if (d.running) timer = setInterval(jobs, 2000);
+}
+async function jobs() {
+  if (current !== "broadcast") return;
+  const d = await api("broadcasts");
+  renderJobs(d);
+  clearInterval(timer);
+  if (d.running) timer = setInterval(jobs, 2000);
+}
+function renderJobs(d) {
+  const el = $("#bjob");
+  if (!el) return;
+  const BST = {running: "yuborilmoqda…", done: "tugadi", stopped: "to'xtatildi", error: "xato bilan to'xtadi"};
+  const run = d.items.find(x => x.id === d.running);
+  let html = "";
+  if (run) {
+    const doneN = run.sent + run.failed + run.blocked, pct = run.total ? Math.round(doneN / run.total * 100) : 0;
+    html += `<h3>Hozir yuborilmoqda <button class="btn ghost sm" id="bstop">To'xtatish</button></h3>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <div class="muted">${doneN} / ${run.total} · yetkazildi ${run.sent} · bloklagan ${run.blocked} · xato ${run.failed}</div><br>`;
+  }
+  html += `<h3>Yuborilgan xabarlar</h3>` + (d.items.length ? d.items.map(b => `<div class="hist">
+      <span class="tx">${b.photo ? "🖼 " : ""}${esc(b.text || "(faqat rasm)")}</span>
+      <span class="muted">${when(b.created_at)} · ${BST[b.status] || b.status} · ✓ ${b.sent}/${b.total}${b.blocked ? " · bloklagan " + b.blocked : ""}</span></div>`).join("")
+    : '<div class="empty">Hali xabar yuborilmagan</div>');
+  el.innerHTML = html;
+  if ($("#bstop")) $("#bstop").onclick = async () => { await api("broadcast/stop", {method: "POST"}); toast("To'xtatilmoqda…"); };
+}
+
+// ---------- tovarlar ----------
+const pst = {q: "", cat: "", only: false, items: []};
+async function products(refresh) {
+  $("#act").innerHTML = `<button class="btn ghost sm" id="prf">↻ Billz'dan yangilash</button>`;
+  $("#prf").onclick = async () => { $("#prf").disabled = true; try { await products(true); toast("Billz'dan yangilandi"); } catch (e) { toast(e.message, true); } };
+  const d = await api("products" + (refresh === true ? "?refresh=1" : ""));
+  pst.items = d.items;
+  const cats = [...new Set(d.items.map(i => i.category))];
+  view.innerHTML = `
+  <div class="tools">
+    <input class="in" id="pq" placeholder="Qidirish: nomi" value="${esc(pst.q)}">
+    <select class="in" id="pc" style="max-width:220px"><option value="">Barcha kategoriyalar</option>
+      ${cats.map(c => `<option${c === pst.cat ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
+    <button class="chip${pst.only ? " on" : ""}" id="ponly">Faqat yashirilganlar</button>
+    <span class="muted" id="psum"></span>
+  </div>
+  <div class="card" style="padding:8px 16px"><div id="plist"></div></div>
+  <div class="muted" style="font-size:12px">Tovarlar, narx va qoldiq Billz'dan har 2 daqiqada avtomatik yangilanadi. Yashirilgan tovar Mini App'da ko'rinmaydi va unga buyurtma berib bo'lmaydi.</div>`;
+  $("#pq").oninput = e => { pst.q = e.target.value.trim().toLowerCase(); renderProducts(); };
+  $("#pc").onchange = e => { pst.cat = e.target.value; renderProducts(); };
+  $("#ponly").onclick = () => { pst.only = !pst.only; $("#ponly").classList.toggle("on", pst.only); renderProducts(); };
+  renderProducts();
+}
+function renderProducts() {
+  const list = pst.items.filter(i => (!pst.q || i.name.toLowerCase().includes(pst.q)) && (!pst.cat || i.category === pst.cat) && (!pst.only || i.hidden));
+  const hid = pst.items.filter(i => i.hidden).length;
+  $("#psum").textContent = `${pst.items.length - hid} ta ko'rinadi · ${hid} ta yashirilgan`;
+  $("#plist").innerHTML = list.length ? list.map(i => `<div class="prod${i.hidden ? " off" : ""}">
+      ${i.photo ? `<img src="${esc(i.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">` : '<div class="ph"></div>'}
+      <div><div class="nm">${esc(i.name)}</div><div class="ct">${esc(i.category)}${i.qty != null && i.in_stock ? " · qoldiq " + fmtN(i.qty) : ""}</div></div>
+      <div class="pr">${i.in_stock ? (i.promo ? `<b>${money(i.promo, i.currency)}</b> <s class="muted">${money(i.price, i.currency)}</s>` : `<b>${money(i.price, i.currency)}</b>`) : ""}</div>
+      <label class="sw" title="${i.hidden ? "Yashirilgan" : "Mini App'da ko'rinadi"}"><input type="checkbox" data-id="${esc(i.id)}"${i.hidden ? "" : " checked"} aria-label="Mini App'da ko'rsatish: ${esc(i.name)}"><span></span></label>
+    </div>`).join("") : `<div class="empty">${pst.items.length ? "Topilmadi" : "Tovarlar hali yuklanmadi — «Billz'dan yangilash» ni bosing"}</div>`;
+  $("#plist").querySelectorAll("input[data-id]").forEach(cb => cb.onchange = async () => {
+    const it = pst.items.find(x => x.id === cb.dataset.id);
+    try {
+      await api("products/hide", {body: {id: it.id, name: it.name, hidden: !cb.checked}});
+      it.hidden = !cb.checked;
+      toast(it.hidden ? "Yashirildi: " + it.name : "Ko'rsatildi: " + it.name);
+      renderProducts();
+    } catch (e) { cb.checked = !cb.checked; toast(e.message, true); }
+  });
+}
+
+// ---------- sozlamalar ----------
+async function settings() {
+  const d = await api("settings");
+  const texts = d.fields.filter(f => f.kind === "text"), others = d.fields.filter(f => f.kind !== "text");
+  const field = f => {
+    const val = f.custom ? f.value : f.default;
+    const input = f.kind === "text"
+      ? `<textarea class="in" id="f_${f.key}" rows="${Math.min(16, Math.max(4, val.split("\n").length + 1))}">${esc(val)}</textarea>`
+      : `<input class="in" id="f_${f.key}" value="${esc(val)}" inputmode="${f.kind === "str" ? "text" : "decimal"}">`;
+    return `<div class="field"><div class="fl"><label for="f_${f.key}">${esc(f.label)}${f.custom ? '<span class="tag">o\'zgartirilgan</span>' : ""}</label>
+      ${f.custom ? `<button class="reset" data-k="${f.key}">Standartga qaytarish</button>` : ""}</div>${input}
+      ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ""}</div>`;
+  };
+  view.innerHTML = `
+  <div class="card"><h3>Muddatli to'lov va boshqa sozlamalar</h3><div class="grid2">${others.map(field).join("")}</div></div>
+  <div class="card"><h3>Bot matnlari <small>Botdagi tugmalar bosilganda chiqadigan matnlar</small></h3>${texts.map(field).join("")}</div>
+  <div class="savebar"><button class="btn" id="ssave">Saqlash</button></div>`;
+  view.querySelectorAll(".reset").forEach(b => b.onclick = () => {
+    const f = d.fields.find(x => x.key === b.dataset.k);
+    $("#f_" + f.key).value = f.default;
+    toast("«Saqlash» ni bosing — standart matn qaytadi");
+  });
+  $("#ssave").onclick = async () => {
+    const values = {};
+    for (const f of d.fields) {
+      const v = $("#f_" + f.key).value.trim();
+      const was = (f.custom ? f.value : f.default).trim();
+      if (v === was) continue;                       // o'zgarmagan
+      values[f.key] = v === String(f.default).trim() ? "" : v;  // standartga teng bo'lsa — standart
+    }
+    if (!Object.keys(values).length) { toast("Hech narsa o'zgarmagan"); return; }
+    $("#ssave").disabled = true;
+    try { await api("settings", {body: {values}}); toast("Saqlandi — botda darhol ishlaydi"); await settings(); }
+    catch (e) { toast(e.message, true); }
+    finally { if ($("#ssave")) $("#ssave").disabled = false; }
+  };
+}
+
+const VIEWS = {dashboard, orders, users, broadcast, products, settings};
+start();
+</script>
+</body>
+</html>

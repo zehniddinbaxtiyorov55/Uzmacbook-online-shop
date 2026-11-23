@@ -5,6 +5,8 @@ from urllib.parse import parse_qsl
 from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 from stock_photos import stock_photos
+import db
+import settings
 
 log = logging.getLogger("BOT")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -12,15 +14,24 @@ URL = os.environ.get("WEBAPP_URL") or os.environ.get("RENDER_EXTERNAL_URL", "")
 if URL and not URL.endswith("/"):
     URL += "/"
 ADMIN = os.environ.get("ADMIN_CHAT_ID", "")       # buyurtmalar keladigan chat
+ADMIN_HOST = os.environ.get("ADMIN_HOST", "").strip()  # admin panel manzili, masalan admin.magicpro.uz
 TOKEN = os.environ["BOT_TOKEN"]
 SKIP = ("seriya", "imei", "serial")
-# Bo'lib to'lash: boshlang'ich %, oylar oralig'i, umumiy narxga har oy qo'shiladigan ustama %
-PLAN = {
-    "down": float(os.environ.get("INSTALLMENT_DOWN_PCT", "50")),
-    "min": int(os.environ.get("INSTALLMENT_MIN_MONTHS", "3")),
-    "max": int(os.environ.get("INSTALLMENT_MAX_MONTHS", "8")),
-    "pct": float(os.environ.get("INSTALLMENT_MONTHLY_PCT", "6")),
-}
+# Bo'lib to'lash: boshlang'ich %, oylar oralig'i, umumiy narxga har oy qo'shiladigan ustama %.
+# Standart qiymatlar env'dan, admin panelda o'zgartirilsa — bazadagisi ishlatiladi.
+settings.DEFAULTS.update(
+    inst_down=os.environ.get("INSTALLMENT_DOWN_PCT", "50"),
+    inst_min=os.environ.get("INSTALLMENT_MIN_MONTHS", "3"),
+    inst_max=os.environ.get("INSTALLMENT_MAX_MONTHS", "8"),
+    inst_pct=os.environ.get("INSTALLMENT_MONTHLY_PCT", "6"),
+    usd_rate_extra=os.environ.get("USD_RATE_EXTRA", "0"),
+    order_thanks="Rahmat! Buyurtmangiz qabul qilindi, menejerimiz tez orada bog'lanadi.",
+)
+
+
+def plan():
+    return {"down": settings.num("inst_down"), "min": int(settings.num("inst_min")),
+            "max": int(settings.num("inst_max")), "pct": settings.num("inst_pct")}
 
 
 MAC_RX = re.compile(r"macbook|\bmbp\b|\bmba\b", re.I)
@@ -31,21 +42,20 @@ def is_mac(name, category, details):
     return bool(MAC_RX.search(" ".join([name, category] + [v for _, v in details])))
 
 
-def plan_calc(price, months):
-    # Boshlang'ich to'lov + (qolgan summa + har oy umumiy narxning PLAN["pct"]% i)
+def plan_calc(price, months, p=None):
+    # Boshlang'ich to'lov + (qolgan summa + har oy umumiy narxning p["pct"]% i)
     # Masalan $2000, 3 oy: down $1000, ustama 6%*2000*3=$360, qolgani $1000+$360=$1360, jami $2360
-    down = math.ceil(price * PLAN["down"] / 100)
-    markup = price * PLAN["pct"] / 100 * months
+    p = p or plan()
+    down = math.ceil(price * p["down"] / 100)
+    markup = price * p["pct"] / 100 * months
     rest = round((price - down) + markup, 2)
     monthly = math.ceil(rest * 100 / months - 1e-9) / 100
     return down, monthly, round(down + rest, 2)
 
 cache = {"items": [], "at": 0.0}
-PHONES = {}  # Telegram user_id -> Telegram tasdiqlagan telefon raqam
 rate_cache = {"rate": None, "date": "", "src": "", "at": 0.0, "busy": False, "task": None, "diag": {}}
 CBU = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/%s"
 RATE_TTL = 3600                                            # kurs har soatda tekshiriladi
-RATE_EXTRA = float(os.environ.get("USD_RATE_EXTRA", "0"))  # kursga qo'shimcha so'm
 BANK_PAGES = ["https://bank.uz/currency/dollar-ssha-uz-aqsh-dollari",
               "https://exchangerates.uz/rates/tashkent"]
 UA = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
@@ -132,12 +142,12 @@ async def _refresh_rate():
                     break
         if len(buys) >= 3:
             best = max(buys)
-            rate = round((best + RATE_EXTRA) / 10) * 10
+            rate = round((best + settings.num("usd_rate_extra")) / 10) * 10
             rate_cache.update(rate=rate, date=today.strftime("%d.%m.%Y"), src="banklar olish kursi", at=time.time())
             log.info("BOT: banklar olish kursi: %s ta bank, eng past %s, eng baland %s -> %s",
                      len(buys), min(buys), best, rate)
         elif cbu:
-            rate = math.ceil((cbu + RATE_EXTRA) / 10) * 10
+            rate = math.ceil((cbu + settings.num("usd_rate_extra")) / 10) * 10
             rate_cache.update(rate=rate, date=got[1], src="Markaziy bank", at=time.time())
             log.warning("BOT: banklar kursi topilmadi, MB kursi ishlatildi: %s -> %s", cbu, rate)
     except Exception:
@@ -204,6 +214,12 @@ def to_item(p):
     }
 
 
+def visible(items):
+    """Admin panelda yashirilgan tovarlarsiz."""
+    hidden = db.hidden_ids()
+    return [i for i in items if i["id"] not in hidden] if hidden else items
+
+
 async def load():
     if time.time() - cache["at"] > 120:
         async with lock:
@@ -268,7 +284,7 @@ async def me(req):
     user = check_init(body.get("initData"))
     if not user:
         return web.json_response({"ok": False}, status=401)
-    return web.json_response({"ok": True, "phone": PHONES.get(user.get("id"), "")})
+    return web.json_response({"ok": True, "phone": db.get_phone(user.get("id"))})
 
 
 async def rate_info(_):
@@ -290,8 +306,8 @@ async def products(_):
         except Exception:
             pass
         rate, rdate = usd_rate()
-    items = await load()
-    return web.json_response({"items": items, "plan": PLAN, "usd_uzs": rate, "rate_date": rdate},
+    return web.json_response({"items": visible(await load()), "plan": plan(), "usd_uzs": rate,
+                              "rate_date": rdate},
                              headers={"Cache-Control": "no-store"})
 
 
@@ -303,17 +319,18 @@ async def order(req):
     user = check_init(body.get("initData"))
     if not user:
         return web.json_response({"ok": False, "error": "auth"}, status=401)
-    by_id = {i["id"]: i for i in await load()}
+    by_id = {i["id"]: i for i in visible(await load())}
     chosen = [by_id[i] for i in (body.get("items") or [])[:20] if i in by_id]
     uid = user.get("id")
-    phone = PHONES.get(uid)
+    phone = db.get_phone(uid)
     if not phone and body.get("shared"):
         # Telegram kontakt xabari botga biroz kechikib kelishi mumkin
         for _ in range(16):
             await asyncio.sleep(0.5)
-            phone = PHONES.get(uid)
+            phone = db.get_phone(uid)
             if phone:
                 break
+    raw_phone = phone or str(body.get("phone") or "")[:30]
     if phone:
         phone += " (Telegram ✓)"
     else:
@@ -323,7 +340,8 @@ async def order(req):
         months = int(body.get("months") or 0)
     except (TypeError, ValueError):
         months = 0
-    if not PLAN["min"] <= months <= PLAN["max"]:
+    p = plan()
+    if not p["min"] <= months <= p["max"]:
         months = 0
     if not chosen:
         return web.json_response({"ok": False, "error": "empty"}, status=400)
@@ -333,41 +351,48 @@ async def order(req):
     totals, downs, monthlies = {}, {}, {}
     lines = []
     for it in chosen:
-        p = it["promo"] or it["price"]
+        pr = it["promo"] or it["price"]
         c = it["currency"]
-        totals[c] = totals.get(c, 0) + p
-        lines.append("• %s — %s" % (it["name"], money(p, c)))
+        totals[c] = totals.get(c, 0) + pr
+        lines.append("• %s — %s" % (it["name"], money(pr, c)))
         if months and it.get("mac"):
-            d, mo, _ = plan_calc(p, months)
+            d, mo, _ = plan_calc(pr, months, p)
             downs[c] = downs.get(c, 0) + d
             monthlies[c] = monthlies.get(c, 0) + mo
         elif months:
-            downs[c] = downs.get(c, 0) + p  # MacBook emas — to'liq to'lanadi
+            downs[c] = downs.get(c, 0) + pr  # MacBook emas — to'liq to'lanadi
     join = lambda dct: " + ".join(money(v, c) for c, v in dct.items())
     if months:
         totals2 = {}
         for it in chosen:
             c = it["currency"]
-            p = it["promo"] or it["price"]
-            totals2[c] = totals2.get(c, 0) + (plan_calc(p, months)[2] if it.get("mac") else p)
+            pr = it["promo"] or it["price"]
+            totals2[c] = totals2.get(c, 0) + (plan_calc(pr, months, p)[2] if it.get("mac") else pr)
         pay = ("Bo'lib to'lash: %s oy (har oy narxning +%g%% ustama)\nBoshlang'ich: %s\nOyiga: %s\nBo'lib to'lashda jami: %s"
-               % (months, PLAN["pct"], join(downs), join(monthlies), join(totals2)))
+               % (months, p["pct"], join(downs), join(monthlies), join(totals2)))
     else:
         pay = "To'lov: to'liq"
     who = (user.get("first_name") or "") + " " + (user.get("last_name") or "")
     uname = "@" + user["username"] if user.get("username") else "username yo'q"
-    text = ("🛒 Yangi buyurtma (Mini App)\n\nMijoz: %s (%s)\nTelefon: %s\nID: %s\n\n%s\n\nJami: %s\n%s"
-            % (who.strip(), uname, phone or "—", user.get("id"), "\n".join(lines),
+    oid = db.add_order(
+        uid, who.strip(), user.get("username") or "", raw_phone,
+        [{"id": it["id"], "name": it["name"], "price": it["promo"] or it["price"],
+          "currency": it["currency"], "mac": bool(it.get("mac"))} for it in chosen],
+        totals, months, pay)
+    text = ("🛒 Yangi buyurtma №%s (Mini App)\n\nMijoz: %s (%s)\nTelefon: %s\nID: %s\n\n%s\n\nJami: %s\n%s"
+            % (oid, who.strip(), uname, phone or "—", user.get("id"), "\n".join(lines),
                join(totals), pay))
+    if ADMIN_HOST:
+        text += "\n\nAdmin panel: https://%s/admin#orders" % ADMIN_HOST
     bot = ctx["bot"]
     try:
         await bot.send_message(int(ADMIN), text)
     except Exception:
+        # buyurtma bazada saqlandi — admin panelda ko'rinadi
         log.exception("BOT: buyurtmani menejerga yuborib bo'lmadi (ADMIN_CHAT_ID?)")
-        return web.json_response({"ok": False, "error": "admin"}, status=500)
     try:
-        await bot.send_message(user["id"], "Rahmat! Buyurtmangiz qabul qilindi, "
-                               "menejerimiz tez orada bog'lanadi.\n\n" + "\n".join(lines) + "\n\n" + pay)
+        await bot.send_message(user["id"], settings.get("order_thanks") + "\n\nBuyurtma №%s\n" % oid
+                               + "\n".join(lines) + "\n\n" + pay)
     except Exception:
         pass
     log.info("BOT: Mini App buyurtma: %s ta tovar", len(chosen))
@@ -376,7 +401,7 @@ async def order(req):
 
 def make_app(bot, billz_products, num):
     ctx.update(bot=bot, billz_products=billz_products, num=num)
-    app = web.Application()
+    app = web.Application(client_max_size=12 * 1024 * 1024)  # admin paneldan rasm yuklash uchun
     app.router.add_get("/", index)
     app.router.add_get("/logo.png", logo)
     app.router.add_get("/api/rate", rate_info)
@@ -384,7 +409,16 @@ def make_app(bot, billz_products, num):
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     app.router.add_post("/api/me", me)
+    app.router.add_get("/api/alive", alive)
     return app
+
+
+ALIVE = hashlib.sha256(("alive:" + TOKEN).encode()).hexdigest()[:24]
+
+
+async def alive(_):
+    """Bot o'z HTTPS manzili ishlayotganini (va aynan shu server ekanini) tekshirishi uchun."""
+    return web.Response(text=ALIVE)
 
 
 async def set_menu(bot):
