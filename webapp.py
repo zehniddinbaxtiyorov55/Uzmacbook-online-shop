@@ -339,11 +339,11 @@ async def logo(_):
 
 
 INTRO_DIR = os.path.join(HERE, "static", "intro")
-INTRO_FILES = {"intro.css", "lid.png", "base.png", "logo-nodot.png", "logo-dot.png", "noise.png"}
+INTRO_FILES = {"intro.js", "pacifico.woff2", "unbounded.woff2", "inter-800.woff2", "inter-600.woff2"}
 
 
 async def intro_file(req):
-    """Kirish animatsiyasi fayllari (CSS va rasmlar). Faqat ro'yxatdagi nomlar."""
+    """Kirish animatsiyasi fayllari (skript va shriftlar). Faqat ro'yxatdagi nomlar."""
     name = req.match_info["name"]
     if name not in INTRO_FILES:
         raise web.HTTPNotFound()

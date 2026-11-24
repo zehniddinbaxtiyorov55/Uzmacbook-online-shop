@@ -11,9 +11,9 @@
   var mode = "";
   try {
     if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    var seen = localStorage.getItem("mp_intro"), t = +localStorage.getItem("mp_intro_t") || 0;
+    var seen = localStorage.getItem("mp_intro2"), t = +localStorage.getItem("mp_intro2_t") || 0;
     if (!seen) mode = "full"; else if (Date.now() - t > 6 * 3600e3) mode = "short";
-    if (mode) { localStorage.setItem("mp_intro", "1"); localStorage.setItem("mp_intro_t", String(Date.now())); }
+    if (mode) { localStorage.setItem("mp_intro2", "1"); localStorage.setItem("mp_intro2_t", String(Date.now())); }
   } catch (e) { mode = "short"; }
   if (mode) document.documentElement.setAttribute("data-intro", mode);
 })();
@@ -33,6 +33,12 @@ html,body{background:#000}
 body{color:var(--tx);font:15px/1.45 Inter,-apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;padding-bottom:96px;overflow-x:hidden}
 html[data-intro] body>*:not(.xin){visibility:hidden}
+html[data-intro=full],html[data-intro=full] body{background:#fff}
+.xin{position:fixed;inset:0;z-index:100;background:#000;cursor:pointer}
+html[data-intro=full] .xin{background:#fff}
+.xin canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.xin.out{transition:opacity .25s;opacity:0 !important}
+.xskip{position:absolute;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));font:600 13px/1 Inter,system-ui,sans-serif;color:rgba(140,140,146,.9)}
 button{font:inherit;cursor:pointer;color:inherit;border:0;background:none}
 svg{display:block}
 .disp{font-family:Unbounded,"Arial Black",-apple-system,sans-serif}
@@ -293,8 +299,9 @@ const inTg = !!(tg && tg.initData);
 const hasSecondary = !!(inTg && tg.SecondaryButton && tg.isVersionAtLeast && tg.isVersionAtLeast("7.10"));
 if (tg) {
   tg.ready(); tg.expand();
-  try { tg.setHeaderColor("#000000"); tg.setBackgroundColor("#000000"); } catch (e) {}
-  try { tg.setBottomBarColor && tg.setBottomBarColor("#000000"); } catch (e) {}
+  const bg0 = document.documentElement.getAttribute("data-intro") === "full" ? "#FFFFFF" : "#000000";   // animatsiya oq fondan boshlanadi
+  try { tg.setHeaderColor(bg0); tg.setBackgroundColor(bg0); } catch (e) {}
+  try { tg.setBottomBarColor && tg.setBottomBarColor(bg0); } catch (e) {}
   try { tg.MainButton.setParams({color: "#FFFFFF", text_color: "#000000"}); } catch (e) {}
 }
 
@@ -755,43 +762,49 @@ async function submit() {
   } finally { tg.MainButton.hideProgress(); }
 }
 
-/* ---- kirish animatsiyasi ---- */
+/* ---- kirish animatsiyasi (static/intro/intro.js) ---- */
+function introColor(c) {
+  if (!tg) return;
+  try { tg.setHeaderColor(c); tg.setBackgroundColor(c); } catch (e) {}
+  try { tg.setBottomBarColor && tg.setBottomBarColor(c); } catch (e) {}
+}
 function intro() {
   const mode = document.documentElement.getAttribute("data-intro");
   if (!mode) return;
-  const T = 9.2, D = mode === "full" ? 0 : 5.4;          // qisqa variant: oxirgi 3,8 soniya
-  const done = () => { document.documentElement.removeAttribute("data-intro"); const o = $(".xin"); if (o) o.remove(); if (hero.length && !view) setHero(0); };
+  const START = mode === "full" ? 0 : 2.1;               // qisqa variant: MacBook ochilishidan boshlanadi
+  const HOLD = .3, FADE = .35;
+  let raf = 0, finished = false;
   const ov = document.createElement("div");
-  ov.className = "xin"; ov.style.setProperty("--d", -D + "s"); ov.style.animationPlayState = "paused";
+  ov.className = "xin";
+  ov.innerHTML = `<canvas aria-hidden="true"></canvas><span class="xskip">O'tkazib yuborish</span>`;
   document.body.appendChild(ov);
-  const files = (mode === "full" ? ["lid.png", "base.png", "noise.png"] : []).concat(["logo-nodot.png", "logo-dot.png"]);
-  const load = src => new Promise(r => { const im = new Image(); im.onload = im.onerror = r; im.src = "intro/" + src; });
-  const css = new Promise(r => { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "intro/intro.css?v=1"; l.onload = r; l.onerror = r; document.head.appendChild(l); });
+  const done = () => {
+    if (finished) return; finished = true;
+    cancelAnimationFrame(raf); clearTimeout(giveUp);
+    document.documentElement.removeAttribute("data-intro"); ov.remove(); introColor("#000000");
+    if (hero.length && !view) setHero(0);
+  };
   const giveUp = setTimeout(done, 3500);                 // internet sekin bo'lsa — animatsiyasiz ochiladi
-  Promise.all([css, ...files.map(load)]).then(() => {
-    clearTimeout(giveUp);
-    if (!document.body.contains(ov)) return;
-    const s = Math.min(innerWidth / 390, innerHeight / 760);
-    const L = ["m", "a", "g", "i", "c", "p"];
-    ov.innerHTML = `<div class="xst" style="--s:${s.toFixed(3)}">
-      ${mode === "full" ? `<div class="xzoom"><div class="xline"></div><div class="xpersp"><div class="xcam">
-        <div class="xdeck"><div class="xkb"></div><div class="xtp"></div></div>
-        <img class="xfront" src="intro/base.png" alt="">
-        <div class="xlid"><img class="xlidf" src="intro/lid.png" alt="">
-          <div class="xscr"><div class="xcrt"></div><div class="xstatic"><div class="xnz"></div><div class="xnz2"></div><div class="xtear xt1"></div><div class="xtear xt2"></div><div class="xtear xt3"></div><div class="xroll"></div><div class="xscan"></div></div><div class="xcdot"></div></div>
-          <div class="xlidb"></div></div></div></div></div>` : ""}
-      <div class="xlk"><div class="xglow"></div>
-        ${L.map(k => `<img class="xpc xpc-${k}" src="intro/logo-nodot.png" alt="">`).join("")}
-        ${L.map(k => `<svg class="xspk xsp-${k}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/></svg>`).join("")}
-        <div class="xshine"></div>
-        ${[..."UZMACBOOK"].map((ch, k) => `<span class="xrl xr${k}">${ch}</span>`).join("")}
-        <div class="xring"></div>${[0, 1, 2, 3, 4, 5, 6, 7].map(n => `<span class="xpt xpt${n}"></span>`).join("")}
-        <img class="xdot" src="intro/logo-dot.png" alt="">
-      </div></div><div class="xskip">O'tkazib yuborish</div>`;
-    ov.style.animationPlayState = "";
-    const end = setTimeout(done, (T - D) * 1000 + 80);
-    ov.addEventListener("click", () => { clearTimeout(end); ov.classList.add("out"); setTimeout(done, 260); haptic("light"); }, {once: true});
-  });
+  ov.addEventListener("click", () => { ov.classList.add("out"); haptic("light"); setTimeout(done, 260); }, {once: true});
+  new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "intro/intro.js?v=2"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); })
+    .then(() => Promise.race([MPIntro.loadFonts("intro/"), new Promise(r => setTimeout(r, 2500))]))
+    .then(() => {
+      if (finished) return;
+      clearTimeout(giveUp);
+      const A = MPIntro.create(ov.querySelector("canvas"));
+      addEventListener("resize", A.resize);
+      const t0 = performance.now(); let white = null;
+      const tick = now => {
+        if (finished) return;
+        const t = START + (now - t0) / 1000, end = MPIntro.T_END + HOLD;
+        A.seek(Math.min(t, MPIntro.T_END));
+        const w = t < .95; if (w !== white) { white = w; introColor(w ? "#FFFFFF" : "#000000"); }
+        if (t > end) ov.style.opacity = String(Math.max(0, 1 - (t - end) / FADE));
+        if (t > end + FADE) return done();
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }).catch(done);
 }
 
 /* ---- hodisalar ---- */
