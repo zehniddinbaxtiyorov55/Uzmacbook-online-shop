@@ -786,7 +786,7 @@ function intro() {
   };
   const giveUp = setTimeout(done, 3500);                 // internet sekin bo'lsa — animatsiyasiz ochiladi
   ov.addEventListener("click", () => { ov.classList.add("out"); haptic("light"); setTimeout(done, 260); }, {once: true});
-  new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "intro/intro.js?v=2"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); })
+  new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "intro/intro.js?v=3"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); })
     .then(() => Promise.race([MPIntro.loadFonts("intro/"), new Promise(r => setTimeout(r, 2500))]))
     .then(() => {
       if (finished) return;

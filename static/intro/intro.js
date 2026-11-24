@@ -3,7 +3,7 @@
    Sahna 390x844 mantiqiy birlikda chiziladi va istalgan ekranga moslab kattalashtiriladi.
    Ranglar: oq, qora, to'q ko'k. Bitta nuqta: ekranni to'ldiradi -> MacBook -> logodagi tugmachani yoqadi. */
 (function () {
-  const C = {bg: "#FFFFFF", ink: "#0B0B0D", deep: "#14295C", blue: "#1F3F99", lid: "#1C1C1F", base: "#2A2A2E", screenOff: "#141416", sub: "#9A9AA0"};
+  const C = {bg: "#FFFFFF", ink: "#0B0B0D", deep: "#14295C", blue: "#1F3F99", lid: "#1C1C1F", base: "#2A2A2E", screenOff: "#141416", sub: "#9A9AA0", logo: "#14295C"};
   const T_END = 4.75, SW = 390, SH = 844;
   const F = {unb: "700 26px MPUnb, Unbounded, sans-serif", pac: "56px MPPac, Pacifico, cursive",
              tag: "800 24px MPInt, Inter, sans-serif", sub: "600 14px MPInt, Inter, sans-serif", pro: "MPInt, Inter, sans-serif"};
@@ -83,12 +83,12 @@
       ctx.save(); ctx.font = F.pac;
       const w = ctx.measureText("magıc").width, xr = lerp(x - 14, x + w + 18, reveal), sl = 12.3;
       ctx.beginPath(); ctx.moveTo(x - 20, y - 56); ctx.lineTo(xr + sl, y - 56); ctx.lineTo(xr - sl, y + 34); ctx.lineTo(x - 20, y + 34); ctx.closePath(); ctx.clip();
-      ctx.fillStyle = C.ink; ctx.fillText("magıc", x, y); ctx.restore();
+      ctx.fillStyle = C.logo; ctx.fillText("magıc", x, y); ctx.restore();
     }
     function proPill(x, y, w, h, k) {
       if (k <= .01) return;
       ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.scale(k, k);
-      ctx.fillStyle = C.ink; rr(-w / 2, -h / 2, w, h, h * .32); ctx.fill();
+      ctx.fillStyle = C.logo; rr(-w / 2, -h / 2, w, h, h * .32); ctx.fill();
       ctx.font = "800 " + (h * .52).toFixed(1) + "px " + F.pro; ctx.fillStyle = C.bg; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("PRO", 0, 1); ctx.restore();
     }
@@ -118,10 +118,10 @@
         }
       }
       if (t >= 2.95) {                                 // uzmacbook + magic, umumiy nuqta bilan
-        uz.forEach((g, i) => { const u = eo(P(t, 2.95 + .03 * i, 3.25 + .03 * i)); txt(g.ch, F.unb, g.x, 367.2 + 10 * (1 - u), C.ink, u); });
-        const ku = eo(P(t, 3.15, 3.45)); txt("k", F.unb, O.x + 173.5, 367.2 + 10 * (1 - ku), C.ink, ku);
+        uz.forEach((g, i) => { const u = eo(P(t, 2.95 + .03 * i, 3.25 + .03 * i)); txt(g.ch, F.unb, g.x, 367.2 + 10 * (1 - u), C.logo, u); });
+        const ku = eo(P(t, 3.15, 3.45)); txt("k", F.unb, O.x + 173.5, 367.2 + 10 * (1 - ku), C.logo, ku);
         const tr = eo(P(t, 3.05, 3.25));
-        if (tr > 0) { ctx.save(); ctx.globalAlpha = tr; ctx.strokeStyle = C.ink; ctx.lineWidth = 3.38; rr(O.x + 134.79, O.y + 8.61, 36.24 * tr, 12.32, 6.16); ctx.stroke(); ctx.restore(); }
+        if (tr > 0) { ctx.save(); ctx.globalAlpha = tr; ctx.strokeStyle = C.logo; ctx.lineWidth = 3.38; rr(O.x + 134.79, O.y + 8.61, 36.24 * tr, 12.32, 6.16); ctx.stroke(); ctx.restore(); }
         handWord(O.x + 60.4, 399, eio(P(t, 3.75, 4.30)));
         proPill(O.x + 198, O.y + 30.1, 40, 22, clamp(spring(t - 4.25, .55, 2.4), 0, 1.2));
         const a1 = eo(P(t, 4.30, 4.60)), a2 = eo(P(t, 4.42, 4.72));
