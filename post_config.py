@@ -45,7 +45,8 @@ TEXT = {
     "services_word": "Xizmatlar",
     "contact_title": "Murojaat uchun:",
     "follow_title": "Ijtimoiy tarmoqlarda bizni kuzating:",
-    "sold": "🔴 SOTILDI",
+    # Sotilganda narx ustidan chiziladi. Tepaga yozuv ham kerak bo'lsa, masalan: "🔴 SOTILDI"
+    "sold": "",
 }
 
 EMOJI = {
@@ -61,12 +62,14 @@ WARRANTY_INTEL = "30 kun"      # Intel
 DEFAULT_KOMPLEKT = "Zaryadka!"
 INSTALLMENT_DEFAULT = False    # yangi postda muddatli to'lov yoqilgan bo'lsinmi
 
-# ---------- Tugmalardagi variantlar (Billz'dagi qiymatlar ham avtomatik qo'shiladi) ----------
+# ---------- «✏️ Tahrirlash» dagi tugmalar ----------
+# (tugmada ko'rinadigan nom, postga yoziladigan qiymat)
+KAFOLAT_OPTIONS = [("90 kun", "90 kun"), ("30 kun", "30 kun")]
+KOMPLEKT_OPTIONS = [("Zaryadka", "Zaryadka!"), ("Full box", "Full box!")]
+# Holati va Rangi: shu variantlar + Billz'dagi qiymatlar + «✍️ Qo'lda yozish»
 OPTIONS = {
     "holat": ["A Category", "B Category", "C Category", "D Category"],
     "rang": ["Silver", "Space Gray", "Space Black", "Gold", "Midnight", "Starlight", "Sky Blue"],
-    "kafolat": ["90 kun", "30 kun", "60 kun", "6 oy", "1 yil"],
-    "komplekt": ["Zaryadka!", "Zaryadka + Quti!", "Faqat noutbuk", "Zaryadka + Quti + Hujjatlar!"],
 }
 
 # ---------- Billz maydon nomlari ----------

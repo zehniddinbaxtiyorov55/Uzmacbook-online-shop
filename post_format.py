@@ -1,28 +1,30 @@
 # -*- coding: utf-8 -*-
-"""Billz tovaridan post ma'lumotini yig'ish va post matnini (HTML) chizish. Telegramga bog'liq emas."""
+"""Billz tovaridan post ma'lumotini yig'ish va post matnini (HTML) chizish. Telegramga bog'liq emas.
+
+Post bo'limlari (har biri alohida tahrirlanadi):
+  Sarlavha · Holati · Rangi · Battery (sikl + yomkost) · Xotira (RAM + SSD) ·
+  Kafolat (90/30 kun) · Komplekt (Zaryadka / Full box) · Narx · Muddatli to'lov (mavjud / mavjud emas)
+"""
 import html
 import math
 import re
 
 import post_config as cfg
 
-FIELDS = [
-    ("holat", "Holati"),
-    ("rang", "Rangi"),
-    ("battery", "Battery"),
-    ("xotira", "Xotira"),
-    ("kafolat", "Kafolat"),
-    ("komplekt", "Komplektda"),
-]
-LABELS = dict(FIELDS, title="Model nomi", price="Narx", tags="Teglar")
-REQUIRED = ["title", "holat", "rang", "battery", "xotira", "kafolat", "komplekt", "price"]
+LABELS = {
+    "title": "Sarlavha", "holat": "Holati", "rang": "Rangi",
+    "cycles": "Battery sikli", "health": "Battery yomkosti",
+    "ram": "RAM", "ssd": "SSD", "kafolat": "Kafolat", "komplekt": "Komplekt",
+    "price": "Narx", "tags": "Teglar",
+}
+REQUIRED = ["title", "holat", "rang", "cycles", "health", "ram", "ssd", "kafolat", "komplekt", "price"]
 
 COLORS = ["Space Black", "Space Gray", "Space Grey", "Rose Gold", "Sky Blue", "Midnight",
           "Starlight", "Silver", "Gold", "Blue", "Black", "White"]
 COLOR_CANON = {"space grey": "Space Gray"}
 
 RAM_SSD_RE = re.compile(r"\b(\d{1,3})\s*(?:gb)?\s*/\s*(\d{3,4}|\d\s*tb)\s*(?:gb)?\b", re.I)
-BATTERY_RE = re.compile(r"(\d{2,3})\s*%\s*/\s*(\d{1,4})")             # 94%/151sikl
+BATTERY_RE = re.compile(r"(\d{2,3})\s*%\s*/\s*(\d{1,4})")                               # 94%/151sikl
 BATTERY_RE2 = re.compile(r"(\d{1,4})\s*(?:sikl|cycle|цикл)\D{0,5}(\d{2,3})\s*%", re.I)  # 151sikl/94%
 M_CHIP_RE = re.compile(r"\bM[1-9]\b", re.I)
 INTEL_RE = re.compile(r"intel|\bi[3579]\b|core\s*i|\bi[3579]-", re.I)
@@ -50,7 +52,7 @@ def num(x):
 
 
 def raw_fields(p):
-    """Billz tovarining barcha qo'shimcha maydon va atributlari: [(nomi, qiymati)]."""
+    """Billz tovarining qo'shimcha maydon va atributlari: [(nomi, qiymati)] (seriya raqamisiz)."""
     out = []
     for f in p.get("custom_fields") or p.get("product_custom_fields") or []:
         name = str(f.get("custom_field_name") or f.get("name") or "").strip()
@@ -80,8 +82,7 @@ def pick_field(fields, keys, used):
     for i, (name, val) in enumerate(fields):
         if i in used:
             continue
-        low = name.lower()
-        if any(k in low for k in keys):
+        if any(k in name.lower() for k in keys):
             used.add(i)
             return val
     return ""
@@ -123,39 +124,52 @@ def norm_color(v):
     return find_color(v) or str(v or "").strip()
 
 
-def gb(v):
-    """'512', '512GB', '1TB', '1 TB' -> (son, 'GB'|'TB')."""
+def norm_ram(v):
+    m = re.search(r"\d{1,3}", str(v or ""))
+    return str(int(m.group())) if m else ""
+
+
+def norm_ssd(v):
+    """'512', '512GB', '1TB', '1 TB', '1024' -> '512' yoki '1TB'."""
     s = str(v or "").lower().replace(" ", "")
-    m = re.search(r"(\d+(?:\.\d+)?)", s)
+    m = re.search(r"\d+(?:\.\d+)?", s)
     if not m:
-        return None
-    n = float(m.group(1))
-    if "tb" in s or n in (1, 2, 4, 8):
-        return (int(n) if n == int(n) else n), "TB"
-    if n >= 1000:
-        return int(n // 1024) or 1, "TB"
-    return int(n), "GB"
-
-
-def fmt_memory(ram, ssd):
-    r = gb(ram)
-    s = gb(ssd)
-    if not r or not s:
         return ""
-    if s[1] == "TB":
-        return "%sGB/%sTB" % (r[0], s[0])
-    return "%s/%s GB" % (r[0], s[0])
+    n = float(m.group())
+    if "tb" in s or n in (1, 2, 4, 8):
+        return "%gTB" % n
+    if n >= 1000:
+        return "%dTB" % (int(n // 1024) or 1)
+    return str(int(n))
+
+
+def memory_text(ram, ssd):
+    """'16/512 GB', '16GB/1TB'. Bittasi yo'q bo'lsa o'rniga ❓."""
+    if not ram and not ssd:
+        return ""
+    ram, ssd = ram or "❓", ssd or "❓"
+    if ssd.endswith("TB"):
+        return "%sGB/%s" % (ram, ssd)
+    return "%s/%s GB" % (ram, ssd)
+
+
+def battery_text(cycles, health):
+    """'175 / 86%' (sikl / yomkost). Bittasi yo'q bo'lsa o'rniga ❓."""
+    if not cycles and not health:
+        return ""
+    return "%s / %s%%" % (cycles or "❓", health or "❓")
 
 
 def battery_from(text):
+    """Artikuldan: 'U-MBA-0164-94%/151sikl' -> ('151', '94')."""
     t = str(text or "")
     m = BATTERY_RE.search(t)
     if m:
-        return "%s / %s%%" % (int(m.group(2)), int(m.group(1)))
+        return str(int(m.group(2))), str(int(m.group(1)))
     m = BATTERY_RE2.search(t)
     if m:
-        return "%s / %s%%" % (int(m.group(1)), int(m.group(2)))
-    return ""
+        return str(int(m.group(1))), str(int(m.group(2)))
+    return "", ""
 
 
 def clean_title(name, sku):
@@ -195,37 +209,34 @@ def extract(p):
     k = cfg.BILLZ_FIELDS
     holat = norm_holat(pick_field(fields, k["holat"], used))
     rang = norm_color(pick_field(fields, k["rang"], used))
-    ram = pick_field(fields, k["ram"], used)
-    ssd = pick_field(fields, k["ssd"], used)
-    bat = pick_field(fields, k["battery"], used)
-    cyc = pick_field(fields, k["cycles"], used)
+    ram_f = pick_field(fields, k["ram"], used)
+    ssd_f = pick_field(fields, k["ssd"], used)
+    bat_f = pick_field(fields, k["battery"], used)
+    cyc_f = pick_field(fields, k["cycles"], used)
     chip = pick_field(fields, k["chip"], used)
 
-    # Xotira: alohida RAM/SSD, yoki "16/512" ko'rinishida bitta maydon, yoki nomdan
-    xotira = ""
-    for v in (ssd, ram):
+    # Xotira: "16/512" ko'rinishidagi maydon, yoki alohida RAM/SSD, yoki nomdan
+    ram = ssd = ""
+    for v in (ssd_f, ram_f, name):
         m = RAM_SSD_RE.search(v or "")
         if m:
-            xotira = fmt_memory(m.group(1), m.group(2))
+            ram, ssd = norm_ram(m.group(1)), norm_ssd(m.group(2))
             break
-    if not xotira and ram and ssd:
-        xotira = fmt_memory(ram, ssd)
-    if not xotira:
-        m = RAM_SSD_RE.search(name)
-        if m:
-            xotira = fmt_memory(m.group(1), m.group(2))
+    if not ram and ram_f:
+        ram = norm_ram(ram_f)
+    if not ssd and ssd_f:
+        ssd = norm_ssd(ssd_f)
 
-    # Battery: avval artikuldan (U-MBA-0164-94%/151sikl), keyin maydonlardan
-    battery = battery_from(sku) or battery_from(name)
-    if not battery and (bat or cyc):
-        h = re.search(r"\d{2,3}", bat or "")
-        c = re.search(r"\d{1,4}", cyc or "")
-        if h and c:
-            battery = "%s / %s%%" % (int(c.group()), int(h.group()))
-        elif h:
-            battery = "%s%%" % int(h.group())
-        elif c:
-            battery = "%s sikl" % int(c.group())
+    # Battery: avval artikuldan, keyin nomdan, keyin maydonlardan
+    cycles, health = battery_from(sku)
+    if not (cycles or health):
+        cycles, health = battery_from(name)
+    if not health and bat_f:
+        h = re.search(r"\d{2,3}", bat_f)
+        health = str(int(h.group())) if h else ""
+    if not cycles and cyc_f:
+        c = re.search(r"\d{1,4}", cyc_f)
+        cycles = str(int(c.group())) if c else ""
 
     if not rang:
         rang = find_color(name)
@@ -237,10 +248,8 @@ def extract(p):
         chip_kind = "INTEL"
     else:
         chip_kind = ""
-    region = ""
     m = REGION_RE.search(all_text)
-    if m:
-        region = "#" + m.group(1) + "A"
+    region = "#" + m.group(1) + "A" if m else ""
 
     # Narx va qoldiq
     shop_id = settings_shop_id()
@@ -266,26 +275,19 @@ def extract(p):
 
     cats = [str(c.get("name") or "") for c in (p.get("categories") or []) if isinstance(c, dict)]
     nm = re.search(r"-(\d{3,6})(?:-|$)", sku)
-    title = clean_title(name, sku) or name
+    serial = serial_of(p)
     return {
-        "id": pid,
-        "sku": sku,
-        "name": name,
-        "title": title,
-        "holat": holat,
-        "rang": rang,
-        "battery": battery,
-        "xotira": xotira,
-        "chip": chip_kind,
-        "region": region,
-        "price": price,
-        "old_price": old,
-        "currency": norm_currency(cur),
-        "qty": qty,
+        "id": pid, "sku": sku, "name": name,
+        "title": clean_title(name, sku) or name,
+        "holat": holat, "rang": rang,
+        "cycles": cycles, "health": health, "ram": ram, "ssd": ssd,
+        "battery": battery_text(cycles, health), "xotira": memory_text(ram, ssd),
+        "chip": chip_kind, "region": region,
+        "price": price, "old_price": old, "currency": norm_currency(cur), "qty": qty,
         "categories": cats,
         "num": int(nm.group(1)) if nm else 0,
-        "serial": serial_of(p),
-        "search": (sku + " " + name + " " + serial_of(p)).lower(),
+        "serial": serial,
+        "search": (sku + " " + name + " " + serial).lower(),
     }
 
 
@@ -300,6 +302,15 @@ def set_shop_id(v):
     _SHOP["id"] = (v or "").strip()
 
 
+def distinguish(x):
+    """Bir xil artikulli tovarlarni ajratadigan qisqa yozuv: seriya oxiri, bo'lmasa xarakteristikalar."""
+    if x.get("serial"):
+        return "…" + x["serial"][-5:]
+    holat = (x.get("holat") or "").replace(" Category", "")
+    bits = [b for b in (holat, x.get("rang"), x.get("xotira")) if b]
+    return ", ".join(bits) or "ID " + str(x.get("id", ""))[-6:]
+
+
 # ---------- Qoralama ----------
 def warranty_for(x):
     if x.get("chip") == "M":
@@ -309,24 +320,21 @@ def warranty_for(x):
     return ""
 
 
+def auto_tags(title, region):
+    return " ".join(t for t in (model_tag(title), region) if t)
+
+
 def new_draft(x, brand):
-    tags = " ".join(t for t in (model_tag(x["title"]), x.get("region")) if t)
     return {
-        "product_id": x["id"],
-        "sku": x["sku"],
-        "title": x["title"],
-        "holat": x["holat"],
-        "rang": x["rang"],
-        "battery": x["battery"],
-        "xotira": x["xotira"],
-        "kafolat": warranty_for(x),
-        "komplekt": cfg.DEFAULT_KOMPLEKT,
-        "price": x["price"],
-        "old_price": x["old_price"],
-        "currency": x["currency"],
+        "product_id": x["id"], "sku": x["sku"], "serial": x.get("serial") or "",
+        "title": x["title"], "holat": x["holat"], "rang": x["rang"],
+        "cycles": x["cycles"], "health": x["health"], "ram": x["ram"], "ssd": x["ssd"],
+        "kafolat": warranty_for(x), "komplekt": cfg.DEFAULT_KOMPLEKT,
+        "price": x["price"], "old_price": x["old_price"], "currency": x["currency"],
         "installment": cfg.INSTALLMENT_DEFAULT,
         "manager": 0,
-        "tags": tags,
+        "region": x.get("region") or "",
+        "tags": auto_tags(x["title"], x.get("region")), "auto_tags": True,
         "brand": brand,
     }
 
@@ -336,7 +344,11 @@ def missing(d):
     for k in REQUIRED:
         v = d.get(k)
         if k == "price":
-            if not v or float(v) <= 0:
+            try:
+                ok = float(v or 0) > 0
+            except (TypeError, ValueError):
+                ok = False
+            if not ok:
                 out.append(LABELS[k])
         elif not str(v or "").strip():
             out.append(LABELS[k])
@@ -371,6 +383,16 @@ def monthly(price, cur):
     return math.ceil(m)
 
 
+def installment_text(d):
+    price = float(d.get("price") or 0)
+    if d.get("installment") and price > 0:
+        p = plan_fn()
+        cur = d.get("currency") or "USD"
+        return cfg.TEXT["installment"].format(down="%g" % p["down"], monthly=fmt_money(monthly(price, cur), cur),
+                                              months=int(p["max"]))
+    return cfg.TEXT["no_installment"]
+
+
 def link(url, text):
     if url:
         return '<a href="%s">%s</a>' % (html.escape(url, quote=True), esc(text))
@@ -391,15 +413,23 @@ def manager_html(b, idx):
 
 
 def render(d, b, sold=False):
-    """Post matni (HTML). d - qoralama, b - brend sozlamalari."""
+    """Post matni (HTML). d - qoralama, b - brend sozlamalari. sold=True — narx ustidan chiziladi."""
     q = "❓"
     L = []
-    if sold:
+    if sold and cfg.TEXT.get("sold"):
         L += ["<b>%s</b>" % esc(cfg.TEXT["sold"]), ""]
     L.append("<b>%s</b>" % esc(d.get("title") or q))
     L.append("")
-    for key, label in FIELDS:
-        L.append("• %s: %s" % (label, esc(d.get(key) or q)))
+    rows = [
+        ("Holati", d.get("holat")),
+        ("Rangi", d.get("rang")),
+        ("Battery", battery_text(d.get("cycles"), d.get("health"))),
+        ("Xotira", memory_text(d.get("ram"), d.get("ssd"))),
+        ("Kafolat", d.get("kafolat")),
+        ("Komplektda", d.get("komplekt")),
+    ]
+    for label, v in rows:
+        L.append("• %s: %s" % (label, esc(v or q)))
     L.append("")
 
     cur = d.get("currency") or "USD"
@@ -413,13 +443,7 @@ def render(d, b, sold=False):
     else:
         p = esc(p)
     L.append("<b>%s</b> %s" % (esc(cfg.TEXT["price_label"]), p))
-    if d.get("installment") and price > 0:
-        p = plan_fn()
-        inst = cfg.TEXT["installment"].format(
-            down="%g" % p["down"], monthly=fmt_money(monthly(price, cur), cur), months=int(p["max"]))
-    else:
-        inst = cfg.TEXT["no_installment"]
-    L.append("<b>(%s)</b>" % esc(inst))
+    L.append("<b>(%s)</b>" % esc(installment_text(d)))
     L.append("")
 
     E = cfg.EMOJI
@@ -446,7 +470,7 @@ def visible_len(caption_html):
     return len(html.unescape(re.sub(r"<[^>]+>", "", caption_html)))
 
 
-# ---------- Qo'lda kiritilgan qiymatlarni tozalash ----------
+# ---------- Qo'lda kiritilgan qiymatlarni tekshirish ----------
 def parse_input(field, text, d):
     """(yangi qiymat, xato matni). '-' maydonni tozalaydi."""
     t = text.strip()
@@ -465,16 +489,26 @@ def parse_input(field, text, d):
         d["currency"] = cur
         d["old_price"] = 0
         return v, None
-    if field == "battery":
-        m = re.fullmatch(r"(\d{1,4})\s*[/ ,]\s*(\d{1,3})\s*%?", t)
-        if m:
-            return "%s / %s%%" % (int(m.group(1)), int(m.group(2))), None
-        return t, None
-    if field == "xotira":
-        m = re.fullmatch(r"(\d{1,3})\s*(?:gb)?\s*/\s*(\d{3,4}|\d\s*tb)\s*(gb)?", t, re.I)
-        if m:
-            return fmt_memory(m.group(1), m.group(2)), None
-        return t, None
+    if field == "cycles":
+        m = re.fullmatch(r"(\d{1,4})\s*(sikl|cycle|цикл)?", t, re.I)
+        if not m:
+            return None, "Siklni raqam bilan yozing, masalan: 175"
+        return str(int(m.group(1))), None
+    if field == "health":
+        m = re.fullmatch(r"(\d{1,3})\s*%?", t)
+        if not m or not 1 <= int(m.group(1)) <= 100:
+            return None, "Yomkostni foizda yozing (1–100), masalan: 86"
+        return str(int(m.group(1))), None
+    if field == "ram":
+        m = re.fullmatch(r"(\d{1,3})\s*(gb)?", t, re.I)
+        if not m or not 2 <= int(m.group(1)) <= 256:
+            return None, "RAM ni GB da yozing, masalan: 16"
+        return str(int(m.group(1))), None
+    if field == "ssd":
+        v = norm_ssd(t)
+        if not v or not re.fullmatch(r"\d+(?:\.\d+)?\s*(gb|tb)?", t.strip(), re.I):
+            return None, "SSD ni yozing, masalan: 512 yoki 1TB"
+        return v, None
     if field == "tags":
         words = [w if w.startswith("#") else "#" + w for w in t.replace(",", " ").split()]
         return " ".join(words), None
@@ -483,12 +517,3 @@ def parse_input(field, text, d):
     if field == "rang":
         return norm_color(t), None
     return t, None
-
-
-def distinguish(x):
-    """Bir xil artikulli tovarlarni ajratadigan qisqa yozuv: seriya oxiri, bo'lmasa xarakteristikalar."""
-    if x.get("serial"):
-        return "…" + x["serial"][-5:]
-    holat = (x.get("holat") or "").replace(" Category", "")
-    bits = [b for b in (holat, x.get("rang"), x.get("xotira")) if b]
-    return ", ".join(bits) or "ID " + str(x.get("id", ""))[-6:]
