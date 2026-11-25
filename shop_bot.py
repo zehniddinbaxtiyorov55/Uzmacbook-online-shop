@@ -1,15 +1,17 @@
 """Do'kon boti: Mini App (Billz tovarlari), /start, /id, /kanal, /hisobot (kunlik savdo hisoboti),
-admin panel (admin.py). Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
+admin panel (admin.py), «📢 Kanalga post» (post_bot.py, faqat xodimlar uchun).
+Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
 import asyncio, hashlib, logging, os, re
 import aiohttp
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
                            ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, WebAppInfo)
 import admin
 import db
+import post_bot
 import report
 import settings
 import webapp
@@ -266,7 +268,8 @@ async def billz_products(include_empty, max_pages):
 
 
 # ---------- Telegram ----------
-def main_menu():
+def main_menu(user=None):
+    """user berilsa va unga ruxsat bo'lsa — «📢 Kanalga post» tugmasi ham qo'shiladi (mijozlar ko'rmaydi)."""
     rows = []
     if webapp.URL:
         rows.append([InlineKeyboardButton(
@@ -282,6 +285,9 @@ def main_menu():
     rows.append([InlineKeyboardButton(
         text="✍️ Savollar va takliflar",
         url="https://t.me/%s" % (settings.get("questions_contact") or QUESTIONS_CONTACT).lstrip("@"))])
+    staff = post_bot.menu_row(user)
+    if staff:
+        rows.append(staff)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -310,7 +316,9 @@ async def fetch_cashback(phone):
 
 @dp.message(CommandStart())
 async def on_start(m: Message):
-    await m.answer(settings.get("welcome"), reply_markup=main_menu())
+    if m.from_user:
+        post_bot.reset(m.from_user.id)
+    await m.answer(settings.get("welcome"), reply_markup=main_menu(m.from_user))
 
 
 @dp.callback_query(F.data.startswith("info:"))
@@ -327,10 +335,11 @@ async def on_info(c: CallbackQuery):
 
 @dp.callback_query(F.data == "menu")
 async def on_menu(c: CallbackQuery):
+    post_bot.reset(c.from_user.id)
     try:
-        await c.message.edit_text(settings.get("welcome"), reply_markup=main_menu())
+        await c.message.edit_text(settings.get("welcome"), reply_markup=main_menu(c.from_user))
     except Exception:
-        await c.message.answer(settings.get("welcome"), reply_markup=main_menu())
+        await c.message.answer(settings.get("welcome"), reply_markup=main_menu(c.from_user))
     await c.answer()
 
 
@@ -349,9 +358,9 @@ async def on_cash_why(c: CallbackQuery):
     info = cashback_info.get(c.from_user.id)
     if not info:
         await c.message.answer("Avval 💰 Cashbackim orqali raqamingizni yuboring.",
-                               reply_markup=main_menu())
+                               reply_markup=main_menu(c.from_user))
     else:
-        await c.message.answer(why_no_cashback(info), reply_markup=main_menu())
+        await c.message.answer(why_no_cashback(info), reply_markup=main_menu(c.from_user))
     await c.answer()
 
 
@@ -400,16 +409,16 @@ async def on_contact(m: Message):
             await m.answer("Hozircha cashback xizmatiga ulana olmadim. Birozdan keyin qayta "
                            "urinib ko'ring yoki ✍️ Savollar va takliflar orqali yozing.",
                            reply_markup=ReplyKeyboardRemove())
-            await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu())
+            await m.answer("Yana nimadir kerakmi?", reply_markup=main_menu(m.from_user))
             return
         info = parse_cashback(text)
         if not info["found"]:
             await m.answer("Tekshirdim 👌", reply_markup=ReplyKeyboardRemove())
-            await m.answer(settings.get("not_bought"), reply_markup=main_menu())
+            await m.answer(settings.get("not_bought"), reply_markup=main_menu(m.from_user))
             return
         cashback_info[m.from_user.id] = info
         await m.answer(text, reply_markup=ReplyKeyboardRemove())
-        kb = main_menu()
+        kb = main_menu(m.from_user)
         if info["left"] <= 0:
             kb.inline_keyboard.insert(0, [InlineKeyboardButton(
                 text="❓ Nega cashback yo'q?", callback_data="cash:why")])
@@ -426,9 +435,19 @@ async def on_hisobot(m: Message, command: CommandObject):
         await on_any(m)
 
 
-@dp.message()
+# «📢 Kanalga post» (xodimlar) — umumiy javobdan OLDIN tekshiriladi.
+# Dispatcher avval o'z handlerlarini, keyin ulangan routerlarni tekshiradi, shuning uchun
+# "hamma xabarga salom" javobi alohida routerda va eng oxirida turadi.
+dp.include_router(post_bot.router)
+fallback = Router(name="fallback")
+
+
+@fallback.message()
 async def on_any(m: Message):
-    await m.answer(settings.get("welcome"), reply_markup=main_menu())
+    await m.answer(settings.get("welcome"), reply_markup=main_menu(m.from_user))
+
+
+dp.include_router(fallback)
 
 
 async def go_live(secret):
@@ -466,6 +485,7 @@ async def main():
     except Exception:
         log.exception("BOT: kunlik hisobotni ulab bo'lmadi")
     admin.setup(app, bot, main_menu)
+    post_bot.setup(bot, billz_products, plan_fn=webapp.plan)
     secret = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32]
     if webapp.URL:
         SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=secret).register(
@@ -480,6 +500,7 @@ async def main():
         report.start()  # har kuni 22:00 hisobot
     except Exception:
         log.exception("BOT: kunlik hisobot jadvalini ishga tushirib bo'lmadi")
+    post_bot.start()  # kanaldagi postlarni Billz bilan solishtirib turadi (sotildi / narx)
     if webapp.URL:
         asyncio.create_task(go_live(secret))
         asyncio.create_task(webapp.load())

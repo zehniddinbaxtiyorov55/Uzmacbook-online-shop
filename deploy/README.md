@@ -39,3 +39,17 @@ O'rnatgach Render'dagi `uzmacbook-ai-bot` ni **Suspend** qiling.
 - Sozlamalar: `/opt/aibot/.env` → `systemctl restart aibot`
 - Loglar: `journalctl -u aibot -f`
 - Yangilash: `bash /opt/aibot-install.sh`
+
+## 📢 Kanalga post (xodimlar uchun)
+
+Botda `/start` → **📢 Kanalga post** tugmasi faqat admin va ruxsat berilganlarga ko'rinadi, mijozlar ko'rmaydi.
+
+- Admin: `@sherxonjumayev` (`post_config.py` → `ADMINS`, yoki `.env` da `POST_ADMINS=user1,user2`)
+- Admin **👥 Ruxsatlar** orqali boshqalarga ruxsat beradi: @username yuboradi yoki o'sha odamning xabarini forward qiladi.
+- Birinchi marta: **⚙️ Sozlamalar** → kanal (bot kanalda admin bo'lishi shart), manzil, Xizmatlar, Telegram, Instagram linklari, menejerlar.
+- Ishlatish: rasmlarni yuborish → artikulni tanlash yoki yozish (`0164`) → tayyor post chatga chiqadi →
+  **✅ Tasdiqlash** (kanalga joylanadi) yoki **✏️ Tahrirlash** (sarlavha, holati, rangi, battery sikl/yomkost,
+  xotira RAM/SSD, kafolat 90/30 kun, komplekt Zaryadka/Full box, narx, muddatli to'lov) → **✅ Tamom** → post qayta chiqadi.
+- Tovar Billz'da sotilsa, kanaldagi postda narx ustidan o'zi chiziladi; Billz'da narx o'zgarsa post narxi ham yangilanadi.
+- Billz maydonlarini tekshirish: `/maydon 0164`.
+- Kod: `post_bot.py` (tugmalar va oqim), `post_format.py` (post matni), `post_config.py` (matnlar, variantlar).
