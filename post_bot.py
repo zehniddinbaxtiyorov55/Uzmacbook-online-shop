@@ -24,6 +24,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton, InlineKeyboardMa
 import db
 import post_config as cfg
 import post_format as pf
+import webapp
 from post_format import esc
 
 log = logging.getLogger("POST")
@@ -186,6 +187,23 @@ def in_post_mode(uid):
 
 
 # ---------- Billz (o'z keshi: artikul va maydonlar kerak) ----------
+_GROUP_RX = {}
+
+
+def shown(x):
+    """Tovar ro'yxatda chiqadimi: post_config.SHOW dagi guruhga kiradi va aksessuar emas."""
+    text = " ".join([x["name"], x["sku"]] + list(x.get("categories") or []))
+    if webapp.ACC_RX.search(text):
+        return False
+    for g in cfg.SHOW:
+        pat = cfg.GROUPS.get(g)
+        if not pat:
+            continue
+        rx = _GROUP_RX.get(pat) or _GROUP_RX.setdefault(pat, re.compile(pat, re.I))
+        if rx.search(text):
+            return True
+    return False
+
 class Stock:
     def __init__(self):
         self.items, self.raw = [], {}
@@ -201,7 +219,6 @@ class Stock:
                 return self.items
             raw = await ctx["fetch"](False, 30)
             items, by_id = [], {}
-            cat = (cfg.CATEGORY_FILTER or "").lower().strip()
             for p in raw:
                 try:
                     x = pf.extract(p)
@@ -210,14 +227,17 @@ class Stock:
                     continue
                 if not x["id"] or x["qty"] <= 0:
                     continue
-                if cat and not any(cat in c.lower() for c in x["categories"]):
-                    continue
+                x["show"] = shown(x)
                 items.append(x)
                 by_id[x["id"]] = p
             self.items, self.raw = items, by_id
             self.loaded_at = time.time()
             self.last_count = len(items)
             return items
+
+    def visible(self):
+        """Ro'yxatda ko'rinadiganlar (post_config.SHOW). Sotilganini kuzatish esa hammasi bo'yicha."""
+        return [x for x in self.items if x.get("show")]
 
     def find(self, pid):
         return next((x for x in self.items if x["id"] == pid), None)
@@ -228,7 +248,7 @@ class Stock:
 
     def values(self, field):
         seen = []
-        for x in self.items:
+        for x in self.visible():
             v = (x.get(field) or "").strip()
             if v and v not in seen:
                 seen.append(v)
@@ -353,7 +373,8 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
     if not dr:
         return
     try:
-        items = await stock.products()
+        await stock.products()
+        items = stock.visible()
     except Exception as e:
         log.exception("POST: Billz xatosi")
         dr.list_msg = await send_or_edit(

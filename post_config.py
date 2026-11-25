@@ -86,8 +86,16 @@ BILLZ_FIELDS = {
 }
 SKIP_FIELDS = ("seriya", "serial", "imei")
 
-# Faqat shu kategoriyadagi tovarlar ro'yxatda chiqsin (masalan "Macbook"). Hammasi kerak bo'lsa: ""
-CATEGORY_FILTER = ""
+# ---------- Ro'yxatda qaysi tovarlar chiqadi ----------
+# Hozircha faqat MacBooklar. Telefon ham kerak bo'lsa: SHOW = ["macbook", "telefon"]
+SHOW = ["macbook"]
+# Guruhlar: tovar nomi, Billz kategoriyasi yoki artikulida shu so'zlardan biri bo'lsa — o'sha guruh.
+# Aksessuarlar (chexol, zaryadka, plyonka, sumka...) hech qachon chiqmaydi (webapp.ACC_RX).
+GROUPS = {
+    "macbook": r"macbook|\bmbp\b|\bmba\b",
+    "telefon": r"iphone|telefon|телефон|smartfon|смартфон|samsung|galaxy|pixel|redmi|xiaomi",
+    "ipad": r"\bipad\b",
+}
 
 # ---------- Sotilganini kuzatish ----------
 SYNC_MINUTES = 10      # har necha daqiqada Billz tekshiriladi
