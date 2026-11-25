@@ -1,4 +1,5 @@
-"""SQLite baza: mijozlar, buyurtmalar, sozlamalar, yashirilgan tovarlar, xabar yuborishlar.
+"""SQLite baza: mijozlar, buyurtmalar, sozlamalar, yashirilgan tovarlar, xabar yuborishlar,
+kanalga joylangan postlar.
 
 Fayl: DB_PATH (standart: data/shop.db). Bitta jarayon ishlatadi, so'rovlar juda tez,
 shuning uchun oddiy sqlite3 yetarli."""
@@ -27,6 +28,11 @@ CREATE TABLE IF NOT EXISTS broadcasts(
   text TEXT, photo TEXT DEFAULT '', button INTEGER DEFAULT 0,
   status TEXT DEFAULT 'running', total INTEGER DEFAULT 0, sent INTEGER DEFAULT 0,
   failed INTEGER DEFAULT 0, blocked INTEGER DEFAULT 0, created_at INTEGER, finished_at INTEGER);
+CREATE TABLE IF NOT EXISTS channel_posts(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id TEXT, sku TEXT, brand TEXT, chat_id INTEGER, msg_id INTEGER, link TEXT DEFAULT '',
+  data TEXT, billz_price REAL DEFAULT 0, status TEXT DEFAULT 'active', miss INTEGER DEFAULT 0,
+  author_id INTEGER DEFAULT 0, created_at INTEGER);
 """
 
 STATUSES = ("new", "contacted", "sold", "cancelled")
@@ -272,3 +278,37 @@ def broadcasts(limit=20):
 def mark_stuck_broadcasts():
     """Server qayta yonganda chala qolgan yuborishlarni 'to'xtatildi' deb belgilaydi."""
     run("UPDATE broadcasts SET status='stopped', finished_at=? WHERE status='running'", (now(),))
+
+
+# ---------- Kanalga joylangan postlar (post_bot.py) ----------
+def add_channel_post(product_id, sku, brand, chat_id, msg_id, link, data, billz_price, author_id):
+    return run("""INSERT INTO channel_posts(product_id, sku, brand, chat_id, msg_id, link, data,
+                                            billz_price, author_id, created_at)
+                  VALUES(?,?,?,?,?,?,?,?,?,?)""",
+               (product_id, sku, brand, chat_id, msg_id, link, json.dumps(data, ensure_ascii=False),
+                float(billz_price or 0), author_id, now()))
+
+
+def update_channel_post(pid, **kw):
+    if "data" in kw and not isinstance(kw["data"], str):
+        kw["data"] = json.dumps(kw["data"], ensure_ascii=False)
+    cols = ", ".join("%s=?" % k for k in kw)
+    run("UPDATE channel_posts SET %s WHERE id=?" % cols, list(kw.values()) + [pid])
+
+
+def tracked_channel_posts():
+    return q("SELECT * FROM channel_posts WHERE status IN ('active', 'sold')")
+
+
+def recent_channel_posts(n=15):
+    return q("SELECT * FROM channel_posts ORDER BY id DESC LIMIT ?", (n,))
+
+
+def posted_product_ids():
+    return {r["product_id"] for r in q(
+        "SELECT DISTINCT product_id FROM channel_posts WHERE status IN ('active', 'sold')")}
+
+
+def user_by_username(username):
+    u = (username or "").strip().lstrip("@").lower()
+    return one("SELECT * FROM users WHERE lower(username)=? ORDER BY last_seen DESC", (u,)) if u else None
