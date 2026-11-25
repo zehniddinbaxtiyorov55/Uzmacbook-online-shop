@@ -220,6 +220,10 @@ class Stock:
     def find(self, pid):
         return next((x for x in self.items if x["id"] == pid), None)
 
+    def same_sku(self, sku):
+        """Sotuvdagi shu artikulli tovarlar soni (artikul bir xil bo'lib qolgan holatlar uchun)."""
+        return sum(1 for x in self.items if sku and x["sku"] == sku)
+
     def values(self, field):
         seen = []
         for x in self.items:
@@ -374,9 +378,17 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
         lines.append("Hech narsa topilmadi. Boshqacha yozib ko'ring.")
     if any(x["id"] in posted for x in chunk):
         lines.append("✅ — kanalga avval joylangan")
+    dup = {x["sku"] for x in chunk if stock.same_sku(x["sku"]) > 1}
+    if dup:
+        lines.append("⚠️ Bir xil artikul bir nechta tovarda bor: <code>%s</code>\n"
+                     "Seriya raqami oxiri (…) bo'yicha to'g'risini tanlang." % esc(", ".join(sorted(dup))))
     rows = []
     for i, x in enumerate(chunk):
-        label = ("✅ " if x["id"] in posted else "") + (x["sku"] or x["name"])[:42]
+        label = ("✅ " if x["id"] in posted else "") + (x["sku"] or x["name"])[:34]
+        if x["sku"] in dup:
+            label += " · " + pf.distinguish(x)
+        if x["qty"] > 1:
+            label += " · %d dona" % x["qty"]
         rows.append([(label + " · " + pf.fmt_money(x["price"], x["currency"]), "pm:p:%d" % i)])
     nav = []
     if dr.page > 0:
@@ -400,7 +412,10 @@ async def choose(chat_id, uid, x, list_msg=None):
     if not dr:
         return
     dr.d = pf.new_draft(x, brand_keys()[0])
+    dr.d["serial"] = x.get("serial") or ""
     note = "✅ Tanlandi: <code>%s</code>" % esc(x["sku"] or x["name"])
+    if x.get("serial"):
+        note += "\nSeriya: <code>%s</code>" % esc(x["serial"])
     if list_msg or dr.list_msg:
         await send_or_edit(chat_id, list_msg or dr.list_msg, note)
     else:
@@ -417,9 +432,16 @@ def panel_text(dr):
     d = dr.d
     lines = ["📝 <b>Post tayyor — tekshiring</b>",
              "Artikul: <code>%s</code>" % esc(d.get("sku") or "—")]
+    if d.get("serial"):
+        lines.append("Seriya: <code>%s</code>" % esc(d["serial"]))
     x = stock.find(d["product_id"])
     if x:
         lines.append("Billz: %s · qoldiq %s" % (pf.fmt_money(x["price"], x["currency"]), int(x["qty"])))
+        if x["qty"] > 1:
+            lines.append("ℹ️ Bu tovardan %d dona bor — «SOTILDI» oxirgisi sotilganda qo'yiladi" % x["qty"])
+    n_same = stock.same_sku(d.get("sku"))
+    if n_same > 1:
+        lines.append("⚠️ Bu artikul Billz'da %d ta tovarda bor — seriya raqamini tekshiring" % n_same)
     if d["product_id"] in db.posted_product_ids():
         lines.append("ℹ️ Bu tovar kanalga avval joylangan")
     miss = pf.missing(d)
@@ -1046,6 +1068,8 @@ async def cb_publish(cb: CallbackQuery):
         who = "⚙️ Sozlamalar → 📢 Kanal" if is_admin(cb.from_user) else "adminga ayting: kanal kiritilmagan"
         return await cb.answer("Kanal kiritilmagan: " + who, show_alert=True)
     lines = ["📢 <b>Joylashni tasdiqlang</b>", "Artikul: <code>%s</code>" % esc(d["sku"])]
+    if d.get("serial"):
+        lines.append("Seriya: <code>%s</code>" % esc(d["serial"]))
     if d["product_id"] in db.posted_product_ids():
         lines.append("⚠️ Bu tovar avval ham joylangan. Baribir joylaymi?")
     if len(targets) == 1:

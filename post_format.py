@@ -65,6 +65,17 @@ def raw_fields(p):
     return [(n, v) for n, v in out if n and v and not any(k in n.lower() for k in cfg.SKIP_FIELDS)]
 
 
+def serial_of(p):
+    """Seriya raqami (faqat xodimga ko'rsatiladi — bir xil artikulli tovarlarni ajratish uchun)."""
+    for f in p.get("custom_fields") or p.get("product_custom_fields") or []:
+        name = str(f.get("custom_field_name") or f.get("name") or "").lower()
+        if any(k in name for k in cfg.SKIP_FIELDS):
+            v = re.sub(r"[^A-Za-z0-9]", "", str(f.get("custom_field_value", f.get("value")) or ""))
+            if len(v) >= 4:
+                return v.upper()
+    return ""
+
+
 def pick_field(fields, keys, used):
     for i, (name, val) in enumerate(fields):
         if i in used:
@@ -273,7 +284,8 @@ def extract(p):
         "qty": qty,
         "categories": cats,
         "num": int(nm.group(1)) if nm else 0,
-        "search": (sku + " " + name).lower(),
+        "serial": serial_of(p),
+        "search": (sku + " " + name + " " + serial_of(p)).lower(),
     }
 
 
@@ -471,3 +483,12 @@ def parse_input(field, text, d):
     if field == "rang":
         return norm_color(t), None
     return t, None
+
+
+def distinguish(x):
+    """Bir xil artikulli tovarlarni ajratadigan qisqa yozuv: seriya oxiri, bo'lmasa xarakteristikalar."""
+    if x.get("serial"):
+        return "…" + x["serial"][-5:]
+    holat = (x.get("holat") or "").replace(" Category", "")
+    bits = [b for b in (holat, x.get("rang"), x.get("xotira")) if b]
+    return ", ".join(bits) or "ID " + str(x.get("id", ""))[-6:]
