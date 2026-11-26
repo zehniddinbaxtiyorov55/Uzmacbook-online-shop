@@ -112,6 +112,23 @@ def norm_holat(v):
     return v
 
 
+GRADE_KEYS = ("kategor", "category", "grade", "sinf", "daraja", "klass")
+
+
+def grade_from(fields, used):
+    """Holati = A/B/C/D Category. Avval kategoriya/grade maydoni, keyin «Holati».
+    «B/U», «Yangi» kabi qiymatlar holat emas — topilmasa bo'sh qoladi (xodim tanlaydi)."""
+    for keys in (GRADE_KEYS, cfg.BILLZ_FIELDS["holat"]):
+        for i, (name, v) in enumerate(fields):
+            if i in used or not any(k in name.lower() for k in keys):
+                continue
+            g = norm_holat(v)
+            if g.endswith(" Category"):
+                used.add(i)
+                return g
+    return ""
+
+
 def find_color(text):
     low = str(text or "").lower()
     for c in COLORS:
@@ -185,6 +202,63 @@ def clean_title(name, sku):
     return t.strip(" -|,/·")
 
 
+# Model yili (Billz nomida yil bo'lmasa): (oila, M avlodi, chip turi) -> {dyuym: yil}
+YEARS = {
+    ("air", 1, ""): {13: 2020},
+    ("air", 2, ""): {13: 2022, 15: 2023},
+    ("air", 3, ""): {13: 2024, 15: 2024},
+    ("air", 4, ""): {13: 2025, 15: 2025},
+    ("pro", 1, ""): {13: 2020},
+    ("pro", 1, "pro"): {14: 2021, 16: 2021},
+    ("pro", 1, "max"): {14: 2021, 16: 2021},
+    ("pro", 2, ""): {13: 2022},
+    ("pro", 2, "pro"): {14: 2023, 16: 2023},
+    ("pro", 2, "max"): {14: 2023, 16: 2023},
+    ("pro", 3, ""): {14: 2023},
+    ("pro", 3, "pro"): {14: 2023, 16: 2023},
+    ("pro", 3, "max"): {14: 2023, 16: 2023},
+    ("pro", 4, ""): {14: 2024},
+    ("pro", 4, "pro"): {14: 2024, 16: 2024},
+    ("pro", 4, "max"): {14: 2024, 16: 2024},
+    ("pro", 5, ""): {14: 2025},
+}
+
+
+def model_year(title):
+    low = str(title or "").lower()
+    fam = "air" if "macbook air" in low else "pro" if "macbook pro" in low else ""
+    m = re.search(r"\bm([1-5])(?:\s+(pro|max))?\b", low)
+    if not fam or not m:
+        return 0
+    table = YEARS.get((fam, int(m.group(1)), m.group(2) or ""))
+    if not table:
+        return 0
+    size = re.search(r'\b(1[3-6])"', title)
+    if size:
+        return table.get(int(size.group(1)), 0)
+    years = set(table.values())
+    return years.pop() if len(years) == 1 else 0
+
+
+def norm_title(t):
+    """Billz nomini post sarlavhasiga: 'MBP M1 13.3"' -> 'Macbook Pro M1 13" 2020'."""
+    t = str(t or "")
+    t = re.sub(r"\bMBP\b", "Macbook Pro", t, flags=re.I)
+    t = re.sub(r"\bMBA\b", "Macbook Air", t, flags=re.I)
+    t = re.sub(r"\bmac\s*book\b", "Macbook", t, flags=re.I)
+    t = re.sub(r"\b(1[3-6])[.,]\d\s*(?:\"|”|″|''|inch\b|dyuym\b)?", r'\1"', t)   # 13.3" -> 13"
+    t = re.sub(r"\b(1[3-6])\s*(?:”|″|''|inch\b|dyuym\b)", r'\1"', t)
+    t = re.sub(r"(\bM[1-5](?:\s+(?:Pro|Max))?\s+)(1[3-6])(?![\"\d.,])", r'\1\2"', t, flags=re.I)
+    t = re.sub(r"\bm([1-5])\b", r"M\1", t)
+    t = re.sub(r"\b(M[1-5])\s+(pro|max)\b", lambda m: m.group(1) + " " + m.group(2).capitalize(), t, flags=re.I)
+    t = re.sub(r"\s{2,}", " ", t).strip()
+    if not re.search(r"\b20[12]\d\b", t):
+        y = model_year(t)
+        if y:
+            t += " %d" % y
+    return t
+
+
 def model_tag(title):
     words = []
     for w in re.split(r"\s+", str(title or "")):
@@ -207,7 +281,7 @@ def extract(p):
     fields = raw_fields(p)
     used = set()
     k = cfg.BILLZ_FIELDS
-    holat = norm_holat(pick_field(fields, k["holat"], used))
+    holat = grade_from(fields, used)
     rang = norm_color(pick_field(fields, k["rang"], used))
     ram_f = pick_field(fields, k["ram"], used)
     ssd_f = pick_field(fields, k["ssd"], used)
@@ -278,7 +352,7 @@ def extract(p):
     serial = serial_of(p)
     return {
         "id": pid, "sku": sku, "name": name,
-        "title": clean_title(name, sku) or name,
+        "title": norm_title(clean_title(name, sku) or name),
         "holat": holat, "rang": rang,
         "cycles": cycles, "health": health, "ram": ram, "ssd": ssd,
         "battery": battery_text(cycles, health), "xotira": memory_text(ram, ssd),
@@ -333,8 +407,8 @@ def new_draft(x, brand):
         "price": x["price"], "old_price": x["old_price"], "currency": x["currency"],
         "installment": cfg.INSTALLMENT_DEFAULT,
         "manager": 0,
-        "region": x.get("region") or "",
-        "tags": auto_tags(x["title"], x.get("region")), "auto_tags": True,
+        "region": x.get("region") or cfg.DEFAULT_REGION,
+        "tags": auto_tags(x["title"], x.get("region") or cfg.DEFAULT_REGION), "auto_tags": True,
         "brand": brand,
     }
 
@@ -393,6 +467,20 @@ def installment_text(d):
     return cfg.TEXT["no_installment"]
 
 
+def icon(b, key):
+    """Namuna postdan olingan premium ikonka (bo'lmasa oddiy emoji)."""
+    plain = b.get("emoji_%s_alt" % key) or cfg.EMOJI[key]
+    eid = str(b.get("emoji_" + key) or "").strip()
+    if eid.isdigit():
+        return '<tg-emoji emoji-id="%s">%s</tg-emoji>' % (eid, esc(plain))
+    return cfg.EMOJI[key]
+
+
+def strip_custom_emoji(text):
+    """Premium ikonka ishlamasa — oddiy emojiga qaytarish."""
+    return re.sub(r'<tg-emoji emoji-id="\d+">(.*?)</tg-emoji>', r"\1", text)
+
+
 def link(url, text):
     if url:
         return '<a href="%s">%s</a>' % (html.escape(url, quote=True), esc(text))
@@ -446,23 +534,22 @@ def render(d, b, sold=False):
     L.append("<b>(%s)</b>" % esc(installment_text(d)))
     L.append("")
 
-    E = cfg.EMOJI
     if b.get("loc_text"):
-        L.append("%s %s!" % (E["location"], link(b.get("loc_url"), b["loc_text"])))
+        L.append("%s %s!" % (icon(b, "location"), link(b.get("loc_url"), b["loc_text"])))
         L.append("")
     L.append("<b>%s</b>%s<b>!</b>" % (esc(cfg.TEXT["services_prefix"]),
                                     link(b.get("services_url"), cfg.TEXT["services_word"])))
     L.append("")
     mh = manager_html(b, int(d.get("manager") or 0))
     if mh:
-        L.append("%s <b>%s</b>" % (E["contact"], esc(cfg.TEXT["contact_title"])))
+        L.append("%s <b>%s</b>" % (icon(b, "contact"), esc(cfg.TEXT["contact_title"])))
         L.append(mh)
         L.append("")
     if str(d.get("tags") or "").strip():
         L.append(esc(d["tags"].strip()))
     L.append("<b>%s</b>" % esc(cfg.TEXT["follow_title"]))
-    L.append("%s %s <b>|</b> %s %s" % (E["telegram"], link(b.get("telegram_url"), "Telegram"),
-                                       E["instagram"], link(b.get("instagram_url"), "Instagram")))
+    L.append("%s %s <b>|</b> %s %s" % (icon(b, "telegram"), link(b.get("telegram_url"), "Telegram"),
+                                       icon(b, "instagram"), link(b.get("instagram_url"), "Instagram")))
     return "\n".join(L)
 
 

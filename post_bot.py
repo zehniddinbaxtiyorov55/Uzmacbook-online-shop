@@ -276,9 +276,13 @@ def brand_keys():
     return list(cfg.BRANDS.keys())
 
 
+ICON_KEYS = ("location", "contact", "telegram", "instagram")
+EMOJI_FIELDS = ["emoji_" + k for k in ICON_KEYS] + ["emoji_%s_alt" % k for k in ICON_KEYS]
+
+
 def brand_cfg(key):
     base = dict(cfg.BRANDS.get(key) or next(iter(cfg.BRANDS.values())))
-    for f, _ in BRAND_FIELDS:
+    for f in [f for f, _ in BRAND_FIELDS] + EMOJI_FIELDS:
         v = db.get_setting("post.%s.%s" % (key, f))
         if v is not None:
             base[f] = v.strip()
@@ -312,7 +316,44 @@ async def send_or_edit(chat_id, msg_id, text, markup=None):
     return m.message_id
 
 
+async def emoji_fallback(e):
+    """Premium ikonka rad etildi — bir marta adminga aytiladi."""
+    log.warning("POST: premium ikonkalar ishlamadi (%s) — oddiy emoji bilan yuborildi", e)
+    if not ctx.get("emoji_warned"):
+        ctx["emoji_warned"] = True
+        await notify("ℹ️ Premium ikonkalar ishlamadi, post oddiy emoji bilan chiqdi.\n"
+                     "Ular ishlashi uchun botning egasida (BotFather'da bot ochgan akkaunt) Telegram Premium bo'lishi kerak.")
+
+
 async def send_post(chat_id, media, caption):
+    """Rasm(lar) + post matni. Premium ikonka rad etilsa — oddiy emoji bilan qayta."""
+    try:
+        return await _send_post(chat_id, media, caption)
+    except TelegramBadRequest as e:
+        if "<tg-emoji" not in caption:
+            raise
+        await emoji_fallback(e)
+        return await _send_post(chat_id, media, pf.strip_custom_emoji(caption))
+
+
+async def edit_caption(chat_id, msg_id, caption):
+    """Caption'ni yangilaydi. True — yangilandi yoki o'zgarish yo'q."""
+    for attempt in (1, 2):
+        try:
+            await bot().edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=caption, parse_mode=H)
+            return True
+        except TelegramBadRequest as e:
+            if "not modified" in str(e).lower():
+                return True
+            if attempt == 1 and "<tg-emoji" in caption:
+                await emoji_fallback(e)
+                caption = pf.strip_custom_emoji(caption)
+                continue
+            raise
+    return False
+
+
+async def _send_post(chat_id, media, caption):
     """Rasm(lar) + post matni. Qaytaradi: (xabar id lari, chat id)."""
     media = [(k, f) for _, k, f in media][:MAX_MEDIA]
     if len(media) == 1:
@@ -605,11 +646,9 @@ async def update_caption(chat_id, dr):
     if not dr.preview:
         return
     try:
-        await bot().edit_message_caption(chat_id=chat_id, message_id=dr.preview[0],
-                                         caption=render(dr.d), parse_mode=H)
+        await edit_caption(chat_id, dr.preview[0], render(dr.d))
     except TelegramBadRequest as e:
-        if "not modified" not in str(e):
-            log.warning("POST: caption yangilanmadi: %s", e)
+        log.warning("POST: caption yangilanmadi: %s", e)
 
 
 async def show_edit(chat_id, dr, note=""):
@@ -653,8 +692,12 @@ async def settings_menu(chat_id, key, edit=None):
     for f, label in BRAND_FIELDS:
         v = str(b.get(f) or "").strip()
         lines.append("%s: %s" % (label, esc(v.replace("\n", "; ")) if v else "— <i>(kiritilmagan)</i>"))
-    lines += ["", "O'zgartirish uchun tugmani bosing:"]
-    rows = pairs([(label, "pm:sf:%s:%s" % (key, f)) for f, label in BRAND_FIELDS])
+    n_icons = sum(1 for k in ICON_KEYS if str(b.get("emoji_" + k) or "").strip())
+    lines.append("🎨 Ikonkalar: %s" % ("%d ta premium" % n_icons if n_icons else "oddiy emoji"))
+    lines += ["", "Eng osoni: «📥 Namuna postdan olish» — kanaldagi tayyor postingizni forward qilasiz, "
+                  "bot linklar va ikonkalarni o'zi oladi.", "", "Yoki bittalab o'zgartiring:"]
+    rows = [[("📥 Namuna postdan olish", "pm:sf:%s:sample" % key)]]
+    rows += pairs([(label, "pm:sf:%s:%s" % (key, f)) for f, label in BRAND_FIELDS])
     rows.append([("⬅️ Orqaga", "pm:home")])
     await send_or_edit(chat_id, edit, "\n".join(lines), kb(rows))
 
@@ -804,10 +847,95 @@ async def on_grant(m: Message):
     await acl_menu(m.chat.id)
 
 
+# ---------- Namuna post: linklar va ikonkalarni olish ----------
+ignore_group = {}   # user_id -> media_group_id (namuna albomning qolgan rasmlari post bo'lib ketmasin)
+
+
+def u16_to_py(text, off):
+    """Telegram entity offseti (UTF-16) -> Python indeksi."""
+    return len(text.encode("utf-16-le")[:off * 2].decode("utf-16-le", errors="ignore"))
+
+
+def parse_sample(text, entities):
+    """Namuna postdan: linklar (manzil, Xizmatlar, Telegram, Instagram) va premium ikonkalar."""
+    found = {}
+    links = []
+    for e in entities or []:
+        start = u16_to_py(text, e.offset)
+        end = u16_to_py(text, e.offset + e.length)
+        part = text[start:end]
+        if e.type == "text_link" and e.url:
+            links.append((part.strip(), e.url))
+        elif e.type == "custom_emoji" and e.custom_emoji_id:
+            after = text[end:end + 40].lower()
+            if "murojaat" in after:
+                k = "contact"
+            elif "telegram" in after[:15]:
+                k = "telegram"
+            elif "instagram" in after[:15]:
+                k = "instagram"
+            else:
+                k = "location"
+            if "emoji_" + k not in found:
+                found["emoji_" + k] = e.custom_emoji_id
+                found["emoji_%s_alt" % k] = part
+    for part, url in links:
+        low = part.lower()
+        if "xizmat" in low:
+            found.setdefault("services_url", url)
+        elif "telegram" in low:
+            found.setdefault("telegram_url", url)
+        elif "instagram" in low:
+            found.setdefault("instagram_url", url)
+        elif "loc_url" not in found and part:
+            found["loc_url"], found["loc_text"] = url, part
+    return found
+
+
+SAMPLE_LABELS = {"loc_url": "🗺 Manzil linki", "loc_text": "📍 Manzil matni", "services_url": "🛠 Xizmatlar linki",
+                 "telegram_url": "✈️ Telegram linki", "instagram_url": "📷 Instagram linki"}
+
+
+@router.message(F.from_user.func(lambda u: u is not None and setting_wait.get(u.id, (0, 0))[1] == "sample"))
+async def on_sample(m: Message):
+    uid = m.from_user.id
+    key = setting_wait[uid][0]
+    if not is_admin(m.from_user):
+        setting_wait.pop(uid, None)
+        return
+    if (m.text or "").strip() == "-":
+        setting_wait.pop(uid, None)
+        return await settings_menu(m.chat.id, key)
+    text = m.caption or m.text or ""
+    entities = m.caption_entities or m.entities or []
+    if not text:
+        if m.media_group_id:
+            ignore_group[uid] = m.media_group_id     # albomning matnsiz rasmi — matnlisini kutamiz
+            return
+        return await m.answer("Matni bor postni forward qiling. Bekor qilish: «-»")
+    found = parse_sample(text, entities)
+    if not found:
+        return await m.answer("Bu postda link ham, premium ikonka ham topilmadi. "
+                              "Kanaldagi tayyor postni forward qiling. Bekor qilish: «-»")
+    setting_wait.pop(uid, None)
+    if m.media_group_id:
+        ignore_group[uid] = m.media_group_id
+    for f, v in found.items():
+        db.set_setting("post.%s.%s" % (key, f), v)
+    got = [SAMPLE_LABELS[f] for f in SAMPLE_LABELS if f in found]
+    n_icons = sum(1 for k in ICON_KEYS if "emoji_" + k in found)
+    if n_icons:
+        got.append("🎨 Ikonkalar: %d ta" % n_icons)
+    await m.answer("✅ Namuna postdan olindi:\n" + "\n".join("• " + g for g in got), parse_mode=H)
+    await settings_menu(m.chat.id, key)
+
+
 # ---------- Rasm / video ----------
 @router.message(F.photo | F.video, F.from_user.func(is_allowed))
 async def on_media(m: Message):
     uid = m.from_user.id
+    if m.media_group_id and ignore_group.get(uid) == m.media_group_id:
+        return                                 # namuna albomning davomi
     dr = drafts.get(uid)
     old_prompt = None
     setting_wait.pop(uid, None)
@@ -994,6 +1122,13 @@ async def cb_settings_field(cb: CallbackQuery):
     if not await staff_cb(cb, admin_only=True):
         return
     _, _, key, field = cb.data.split(":", 3)
+    if field == "sample":
+        setting_wait[cb.from_user.id] = (key, "sample")
+        await cb.answer()
+        return await send(cb.message.chat.id,
+                          "📥 Kanaldagi o'zingiz qilgan tayyor postni shu yerga <b>forward</b> qiling.\n"
+                          "Bot undan manzil, Xizmatlar, Telegram, Instagram linklarini va ikonkalarni oladi.\n\n"
+                          "Bekor qilish: «-»")
     if field not in SETTING_HINTS:
         return await cb.answer()
     setting_wait[cb.from_user.id] = (key, field)
@@ -1273,13 +1408,9 @@ async def do_publish(cb, dr, keys):
 # ---------- Sotilganini kuzatish ----------
 async def edit_channel_post(r, d, sold):
     try:
-        await bot().edit_message_caption(chat_id=r["chat_id"], message_id=r["msg_id"],
-                                         caption=render(d, brand_cfg(r["brand"]), sold=sold), parse_mode=H)
-        return True
+        return await edit_caption(r["chat_id"], r["msg_id"], render(d, brand_cfg(r["brand"]), sold=sold))
     except TelegramBadRequest as e:
         s = str(e).lower()
-        if "not modified" in s:
-            return True
         if "not found" in s:
             db.update_channel_post(r["id"], status="deleted")
         log.warning("POST: post %s tahrirlanmadi: %s", r["id"], e)
