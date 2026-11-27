@@ -497,7 +497,7 @@ async def main():
     await web.TCPSite(runner, host, port).start()
     log.info("BOT: server %s:%s da ishga tushdi", host, port)
     try:
-        report.start()  # har kuni 22:00 hisobot
+        report.start()  # kunlik hisobot standart o'chiq (REPORT_DAILY=1 bilan yoqiladi)
     except Exception:
         log.exception("BOT: kunlik hisobot jadvalini ishga tushirib bo'lmadi")
     post_bot.start()  # kanaldagi postlarni Billz bilan solishtirib turadi (sotildi / narx)

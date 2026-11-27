@@ -49,6 +49,7 @@ TEXT = {
     "sold": "",
 }
 
+# Oddiy emoji. Premium ikonkalar: 📢 Kanalga post → ⚙️ Sozlamalar → 📥 Namuna postdan olish
 EMOJI = {
     "location": "📍",
     "contact": "🔗",
@@ -60,6 +61,7 @@ EMOJI = {
 WARRANTY_M_CHIP = "90 kun"     # Apple M1/M2/M3/M4...
 WARRANTY_INTEL = "30 kun"      # Intel
 DEFAULT_KOMPLEKT = "Zaryadka!"
+DEFAULT_REGION = "#LLA"        # model raqamida region topilmasa, tegga shu qo'shiladi ("" — qo'shilmaydi)
 INSTALLMENT_DEFAULT = False    # yangi postda muddatli to'lov yoqilgan bo'lsinmi
 
 # ---------- «✏️ Tahrirlash» dagi tugmalar ----------
