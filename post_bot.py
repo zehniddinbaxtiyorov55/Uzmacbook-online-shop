@@ -56,7 +56,10 @@ SETTING_HINTS = {
     "managers": "Menejerlarni yuboring, har qatorda bittasi:\n910130770 | @sherxonjumayev",
 }
 PROMPTS = {
-    "title": "📝 Sarlavhani yozing, masalan: Macbook Pro M1 Pro 14\" 2021",
+    "nomi": "📝 Nomini yozing, masalan: Macbook Pro",
+    "chip": "📝 Chipni yozing, masalan: M1, M1 Pro, M2 Max, Intel Core i7",
+    "dyum": "📝 Ekran dyuymini yozing, masalan: 13.3 yoki 14",
+    "yil": "📝 Yilini yozing, masalan: 2020",
     "cycles": "🔄 Battery siklini yozing, masalan: 175",
     "health": "🔋 Battery yomkostini (foiz) yozing, masalan: 86",
     "ram": "💾 RAM ni yozing (GB), masalan: 16",
@@ -67,7 +70,10 @@ PROMPTS = {
     "rang": "🎨 Rangini yozing, masalan: Silver",
 }
 # Qo'lda kiritilgandan keyin qaysi menyuga qaytiladi (bo'lmasa — tahrirlash menyusi)
-RETURN_TO = {"cycles": "battery", "health": "battery", "ram": "xotira", "ssd": "xotira"}
+RETURN_TO = {"cycles": "battery", "health": "battery", "ram": "xotira", "ssd": "xotira",
+             "nomi": "title", "chip": "title", "dyum": "title", "yil": "title"}
+SECTIONS = ("title", "nomi", "chip", "dyum", "yil", "partiya", "battery", "xotira", "kafolat", "komplekt",
+            "inst", "holat", "rang", "manager")
 
 
 # ---------- Ruxsatlar ----------
@@ -531,7 +537,7 @@ def edit_text(dr, note=""):
     d = dr.d
     lines = [note, ""] if note else []
     lines += ["✏️ <b>Qaysi qismini tahrirlaymiz?</b>", "",
-              "📝 Sarlavha: %s" % val(d.get("title")),
+              "📝 Sarlavha: %s" % esc(pf.title_text(d)),
               "🏷 Holati: %s" % val(d.get("holat")),
               "🎨 Rangi: %s" % val(d.get("rang")),
               "🔋 Battery: sikl %s / yomkost %s" % (val(d.get("cycles")),
@@ -542,8 +548,15 @@ def edit_text(dr, note=""):
               "📦 Komplekt: %s" % val(d.get("komplekt")),
               "💵 Narx: %s" % (esc(pf.fmt_money(d["price"], d.get("currency"))) if d.get("price") else "❓"),
               "💳 Muddatli to'lov: %s" % ("Mavjud" if d.get("installment") else "Mavjud emas"),
+              "🌎 Partiya: %s" % partiya_label(d.get("partiya")),
               "", "O'zgarishlar yuqoridagi postda darhol ko'rinadi. Tugatgach «✅ Tamom» ni bosing."]
     return "\n".join(lines)
+
+
+def partiya_label(code):
+    if not code:
+        return "❓"
+    return "%s (%s)" % (esc(code), esc(pf.partiya_tag(code)))
 
 
 def ssd_label(ssd):
@@ -558,7 +571,7 @@ def edit_kb(dr):
         [("🎨 Rangi", "pm:e:rang"), ("🔋 Battery", "pm:e:battery")],
         [("💾 Xotira", "pm:e:xotira"), ("🛡 Kafolat", "pm:e:kafolat")],
         [("📦 Komplekt", "pm:e:komplekt"), ("💵 Narx", "pm:e:price")],
-        [("💳 Muddatli to'lov", "pm:e:inst")],
+        [("💳 Muddatli to'lov", "pm:e:inst"), ("🌎 Partiya", "pm:e:partiya")],
     ]
     extra = [("🖼 Rasmlar", "pm:e:media"), ("#️⃣ Teglar", "pm:e:tags")]
     if len(pf.manager_lines(brand_cfg(dr.d["brand"]))) > 1:
@@ -576,7 +589,45 @@ def section_view(dr, sec):
     """Bo'lim ichidagi tugmalar: (matn, tugmalar). Variant tanlanadi yoki «qo'lda» yoziladi."""
     d = dr.d
     back = ("⬅️ Orqaga", "pm:ed")
-    if sec == "battery":
+    to_title = ("⬅️ Orqaga", "pm:e:title")
+    if sec == "title":
+        text = ("📝 <b>Sarlavha</b> — qaysi qismini o'zgartiramiz?\nHozir: %s" % esc(pf.title_text(d)))
+        rows = [[("Nomi: %s" % (d.get("nomi") or "❓"), "pm:e:nomi"), ("Chip: %s" % (d.get("chip") or "❓"), "pm:e:chip")],
+                [("Ekran: %s" % ((d.get("dyum") + '"') if d.get("dyum") else "❓"), "pm:e:dyum"),
+                 ("Yili: %s" % (d.get("yil") or "❓"), "pm:e:yil")],
+                [back]]
+    elif sec in ("nomi", "dyum"):
+        opts = list(cfg.NOMI_OPTIONS if sec == "nomi" else cfg.DYUM_OPTIONS)
+        cur = d.get(sec)
+        if cur and cur not in opts:
+            opts.insert(0, cur)
+        dr.opts = opts
+        label = (lambda o: o) if sec == "nomi" else (lambda o: o + '"')
+        text = "📝 <b>%s</b> — tanlang yoki qo'lda yozing:" % pf.LABELS[sec]
+        rows = pairs([(mark(o == cur, label(o)), "pm:o:%s:%d" % (sec, i)) for i, o in enumerate(opts)], 3 if sec == "dyum" else 2)
+        rows.append([("✍️ Qo'lda yozish", "pm:w:" + sec), to_title])
+    elif sec == "chip":
+        opts = [v for v in stock.values("chip") if v][:12]
+        cur = d.get("chip")
+        if cur and cur not in opts:
+            opts.insert(0, cur)
+        dr.opts = opts
+        text = "📝 <b>Chip</b> — tanlang yoki qo'lda yozing:"
+        rows = pairs([(mark(o == cur, o), "pm:o:chip:%d" % i) for i, o in enumerate(opts)])
+        rows.append([("✍️ Qo'lda yozish", "pm:w:chip"), to_title])
+    elif sec == "yil":
+        guess = pf.model_year(d.get("nomi"), d.get("chip"), d.get("dyum"))
+        dr.opts = [guess] if guess else []
+        text = "📝 <b>Yili</b> — %s" % ("modeldan aniqlangani: %s. Tanlang yoki qo'lda yozing:" % guess
+                                       if guess else "qo'lda yozing:")
+        rows = [[(mark(guess == d.get("yil"), guess), "pm:o:yil:0")]] if guess else []
+        rows.append([("✍️ Qo'lda yozish", "pm:w:yil"), to_title])
+    elif sec == "partiya":
+        dr.opts = [c for c, _ in cfg.PARTIYA]
+        text = "🌎 <b>Partiya</b> — tanlang (teg shunga qarab qo'yiladi):"
+        rows = [[(mark(c == d.get("partiya"), "%s (%s)" % (c, tag)), "pm:o:partiya:%d" % i)
+                 for i, (c, tag) in enumerate(cfg.PARTIYA)], [back]]
+    elif sec == "battery":
         text = ("🔋 <b>Battery</b> — qaysi qismini o'zgartiramiz?\nHozir: %s"
                 % val(pf.battery_text(d.get("cycles"), d.get("health"))))
         rows = [[("🔄 Sikl: %s" % (d.get("cycles") or "❓"), "pm:w:cycles"),
@@ -673,6 +724,27 @@ async def ask_text(chat_id, dr, field):
     dr.prompt = m.message_id
 
 
+def set_field(d, field, value):
+    """Qiymatni yozadi; nomi/chip/partiya o'zgarsa teg, chip o'zgarsa kafolat ham yangilanadi."""
+    if field == "chip":
+        old_auto = pf.warranty_for({"chip": d.get("chip")})
+        if d.get("kafolat") in ("", old_auto):
+            d["kafolat"] = pf.warranty_for({"chip": value}) or d.get("kafolat")
+    d[field] = value
+    if field == "tags":
+        d["auto_tags"] = False
+    if field in ("nomi", "chip", "partiya"):
+        pf.refresh_tags(d)
+
+
+def saved_value(field, value):
+    if field == "dyum" and value:
+        return value + '"'
+    if field == "partiya" and value:
+        return "%s (%s)" % (value, pf.partiya_tag(value))
+    return value
+
+
 def saved_note(field, value, d):
     if field == "price":
         value = pf.fmt_money(value, d.get("currency")) if value else "—"
@@ -682,6 +754,8 @@ def saved_note(field, value, d):
         value = "%s GB" % value
     elif field == "ssd":
         value = ssd_label(value)
+    else:
+        value = saved_value(field, value)
     return "✅ Saqlandi: %s — %s" % (pf.LABELS.get(field, field), esc(value or "—"))
 
 
@@ -804,7 +878,7 @@ async def cmd_fields(m: Message, command: CommandObject):
                "Kategoriya: %s" % ", ".join(x["categories"]), "", "Billz maydonlari:"]
         out += ["  %s = %s" % (n, v) for n, v in pf.raw_fields(p)] or ["  (yo'q)"]
         out += ["", "Bot olgani:"]
-        for k in ("title", "holat", "rang", "battery", "xotira", "chip", "region"):
+        for k in ("nomi", "chip", "dyum", "yil", "partiya", "holat", "rang", "battery", "xotira"):
             out.append("  %s = %s" % (k, x.get(k) or "—"))
         out.append("  narx = %s, qoldiq = %s" % (pf.fmt_money(x["price"], x["currency"]), x["qty"]))
         await m.answer("<pre>%s</pre>" % esc("\n".join(out)[:3800]), parse_mode=H)
@@ -1001,11 +1075,7 @@ async def on_text(m: Message):
         if err:
             await m.answer("⚠️ " + err)
             return
-        dr.d[field] = val
-        if field == "title" and dr.d.get("auto_tags"):      # teg sarlavhadan yangilanadi
-            dr.d["tags"] = pf.auto_tags(val, dr.d.get("region"))
-        if field == "tags":
-            dr.d["auto_tags"] = False
+        set_field(dr.d, field, val)
         dr.awaiting = None
         await safe_delete(m.chat.id, m.message_id)
         await safe_delete(m.chat.id, dr.prompt)
@@ -1087,7 +1157,7 @@ async def cb_posts(cb: CallbackQuery):
         lines = ["📋 <b>Oxirgi postlar</b> (🟢 sotuvda, 🔴 sotildi, ⚪ o'chirilgan)", ""]
         for r in rows:
             d = json.loads(r["data"] or "{}")
-            sku = esc(r["sku"] or d.get("title") or "?")
+            sku = esc(r["sku"] or pf.title_text(d) or "?")
             name = '<a href="%s">%s</a>' % (esc(r["link"]), sku) if r["link"] else sku
             price = pf.fmt_money(d.get("price") or 0, d.get("currency") or "USD")
             day = time.strftime("%d.%m", time.gmtime((r["created_at"] or 0) + db.TZ_SHIFT))
@@ -1238,7 +1308,7 @@ async def cb_section(cb: CallbackQuery):
     dr.awaiting = None
     await safe_delete(chat_id, dr.prompt)
     dr.prompt = None
-    if sec in ("battery", "xotira", "kafolat", "komplekt", "inst", "holat", "rang", "manager"):
+    if sec in SECTIONS:
         await cb.answer()
         await show_section(chat_id, dr, sec)
     elif sec == "media":
@@ -1284,11 +1354,15 @@ async def cb_option(cb: CallbackQuery):
         dr.d["manager"] = i
         shown, label = v, "Murojaat uchun"
     else:
-        dr.d[f] = v
-        shown, label = v, pf.LABELS.get(f, f)
+        set_field(dr.d, f, v)
+        shown, label = saved_value(f, v), pf.LABELS.get(f, f)
     await cb.answer("✅")
     await update_caption(cb.message.chat.id, dr)
-    await show_edit(cb.message.chat.id, dr, "✅ Saqlandi: %s — %s" % (label, esc(shown)))
+    note = "✅ Saqlandi: %s — %s" % (label, esc(shown))
+    if f in RETURN_TO:
+        await show_section(cb.message.chat.id, dr, RETURN_TO[f], note)
+    else:
+        await show_edit(cb.message.chat.id, dr, note)
 
 
 @router.callback_query(F.data == "pm:done")

@@ -12,12 +12,14 @@ import re
 import post_config as cfg
 
 LABELS = {
-    "title": "Sarlavha", "holat": "Holati", "rang": "Rangi",
+    "nomi": "Nomi", "chip": "Chip", "dyum": "Ekran", "yil": "Yili", "partiya": "Partiya",
+    "holat": "Holati", "rang": "Rangi",
     "cycles": "Battery sikli", "health": "Battery yomkosti",
     "ram": "RAM", "ssd": "SSD", "kafolat": "Kafolat", "komplekt": "Komplekt",
     "price": "Narx", "tags": "Teglar",
 }
-REQUIRED = ["title", "holat", "rang", "cycles", "health", "ram", "ssd", "kafolat", "komplekt", "price"]
+REQUIRED = ["nomi", "chip", "dyum", "yil", "holat", "rang", "cycles", "health", "ram", "ssd",
+            "kafolat", "komplekt", "price", "partiya"]
 
 COLORS = ["Space Black", "Space Gray", "Space Grey", "Rose Gold", "Sky Blue", "Midnight",
           "Starlight", "Silver", "Gold", "Blue", "Black", "White"]
@@ -26,9 +28,6 @@ COLOR_CANON = {"space grey": "Space Gray"}
 RAM_SSD_RE = re.compile(r"\b(\d{1,3})\s*(?:gb)?\s*/\s*(\d{3,4}|\d\s*tb)\s*(?:gb)?\b", re.I)
 BATTERY_RE = re.compile(r"(\d{2,3})\s*%\s*/\s*(\d{1,4})")                               # 94%/151sikl
 BATTERY_RE2 = re.compile(r"(\d{1,4})\s*(?:sikl|cycle|цикл)\D{0,5}(\d{2,3})\s*%", re.I)  # 151sikl/94%
-M_CHIP_RE = re.compile(r"\bM[1-9]\b", re.I)
-INTEL_RE = re.compile(r"intel|\bi[3579]\b|core\s*i|\bi[3579]-", re.I)
-REGION_RE = re.compile(r"(?<![A-Z])([A-Z]{1,3})\s*/\s*A\b")   # MKGR3LL/A -> LL
 
 
 def esc(s):
@@ -189,20 +188,7 @@ def battery_from(text):
     return "", ""
 
 
-def clean_title(name, sku):
-    t = str(name or "")
-    if sku:
-        t = t.replace(sku, " ")
-    t = RAM_SSD_RE.sub(" ", t)
-    for c in COLORS:
-        t = re.sub(r"\b" + re.escape(c) + r"\b", " ", t, flags=re.I)
-    t = re.sub(r"\b\d{2,3}\s*%\s*/\s*\d+\s*(sikl|cycle)?", " ", t, flags=re.I)
-    t = re.sub(r"\(\s*\)", " ", t)
-    t = re.sub(r"\s{2,}", " ", t)
-    return t.strip(" -|,/·")
-
-
-# Model yili (Billz nomida yil bo'lmasa): (oila, M avlodi, chip turi) -> {dyuym: yil}
+# Model yili (Billz'da yil bo'lmasa): (oila, M avlodi, chip turi) -> {dyuym: yil}
 YEARS = {
     ("air", 1, ""): {13: 2020},
     ("air", 2, ""): {13: 2022, 15: 2023},
@@ -222,55 +208,118 @@ YEARS = {
     ("pro", 4, "max"): {14: 2024, 16: 2024},
     ("pro", 5, ""): {14: 2025},
 }
+MODEL_KEYS = ("model", "модель")
+CHIP_KEYS = ("chip", "protsessor", "processor", "процессор", "cpu")
+SCREEN_KEYS = ("ekran", "screen", "diagonal", "экран", "диагональ", "dyuym")
+YEAR_KEYS = ("yil", "year", "год")
+PARTIYA_KEYS = ("partiya", "партия", "partia", "batch")
+DYUM_RE = re.compile(r"\b(1[1-7](?:[.,]\d)?)\s*(?:\"|”|″|''|-?\s*inch|dyuym|дюйм)", re.I)
+DYUM_BARE_RE = re.compile(r"(?<![\d/.,%])(1[1-7](?:[.,]\d)?)(?![\d/%.,])(?!\s*(?:gb|tb|%|sikl|cycle))", re.I)
 
 
-def model_year(title):
-    low = str(title or "").lower()
-    fam = "air" if "macbook air" in low else "pro" if "macbook pro" in low else ""
-    m = re.search(r"\bm([1-5])(?:\s+(pro|max))?\b", low)
+def field_by(fields, keys):
+    for name, v in fields:
+        if any(name.lower().strip().startswith(k) or k in name.lower() for k in keys):
+            return v
+    return ""
+
+
+def nomi_from(sku, name, model_field):
+    """Artikulda MBP -> Macbook Pro, MBA -> Macbook Air (bo'lmasa Billz «Model» maydoni yoki nomidan)."""
+    s = str(sku or "").upper()
+    if re.search(r"(?<![A-Z])MBP(?![A-Z])", s):
+        return "Macbook Pro"
+    if re.search(r"(?<![A-Z])MBA(?![A-Z])", s):
+        return "Macbook Air"
+    for t in (model_field, name):
+        low = str(t or "").lower()
+        if re.search(r"\bmbp\b|mac\s*book\s*pro", low):
+            return "Macbook Pro"
+        if re.search(r"\bmba\b|mac\s*book\s*air", low):
+            return "Macbook Air"
+    return ""
+
+
+def norm_chip(v):
+    """'Apple M1 Pro' -> 'M1 Pro', 'core i7' / 'i7' -> 'Intel Core i7'."""
+    s = re.sub(r"(?i)\bapple\b", " ", str(v or "")).strip()
+    m = re.search(r"\bM\s*([1-9])(?:\s*(pro|max|ultra))?\b", s, re.I)
+    if m:
+        return "M%s%s" % (m.group(1), (" " + m.group(2).capitalize()) if m.group(2) else "")
+    m = re.search(r"\bcore\s*i?([3579])\b", s, re.I) or re.search(r"\bi([3579])\b", s, re.I)
+    if m:
+        return "Intel Core i%s" % m.group(1)
+    if re.search(r"intel", s, re.I):
+        return "Intel"
+    return ""
+
+
+def norm_dyum(v):
+    """'13,3 dyuym' / '13.3"' / '14' -> '13.3' / '14'."""
+    t = str(v or "")
+    m = DYUM_RE.search(t) or re.search(r"(?<![\d.,])(1[1-7](?:[.,]\d)?)(?![\d])", t)
+    if not m:
+        return ""
+    n = m.group(1).replace(",", ".")
+    return n[:-2] if n.endswith(".0") else n
+
+
+def dyum_in_name(name, sku):
+    t = str(name or "").replace(str(sku or ""), " ") if sku else str(name or "")
+    t = RAM_SSD_RE.sub(" ", t)
+    t = re.sub(r"\b\d{2,3}\s*%\s*/\s*\d+", " ", t)
+    m = DYUM_RE.search(t) or DYUM_BARE_RE.search(re.sub(r"\b20[0-3]\d\b", " ", t))
+    return norm_dyum(m.group(0)) if m else ""
+
+
+def model_year(nomi, chip, dyum):
+    low = str(nomi or "").lower()
+    fam = "air" if "air" in low else "pro" if "pro" in low else ""
+    m = re.fullmatch(r"M([1-5])(?:\s+(Pro|Max))?", str(chip or ""))
     if not fam or not m:
-        return 0
-    table = YEARS.get((fam, int(m.group(1)), m.group(2) or ""))
+        return ""
+    table = YEARS.get((fam, int(m.group(1)), (m.group(2) or "").lower()))
     if not table:
-        return 0
-    size = re.search(r'\b(1[3-6])"', title)
+        return ""
+    try:
+        size = int(float(dyum)) if dyum else 0
+    except ValueError:
+        size = 0
     if size:
-        return table.get(int(size.group(1)), 0)
+        y = table.get(size)
+        return str(y) if y else ""
     years = set(table.values())
-    return years.pop() if len(years) == 1 else 0
+    return str(years.pop()) if len(years) == 1 else ""
 
 
-def norm_title(t):
-    """Billz nomini post sarlavhasiga: 'MBP M1 13.3"' -> 'Macbook Pro M1 13" 2020'."""
-    t = str(t or "")
-    t = re.sub(r"\bMBP\b", "Macbook Pro", t, flags=re.I)
-    t = re.sub(r"\bMBA\b", "Macbook Air", t, flags=re.I)
-    t = re.sub(r"\bmac\s*book\b", "Macbook", t, flags=re.I)
-    t = re.sub(r"\b(1[3-6])[.,]\d\s*(?:\"|”|″|''|inch\b|dyuym\b)?", r'\1"', t)   # 13.3" -> 13"
-    t = re.sub(r"\b(1[3-6])\s*(?:”|″|''|inch\b|dyuym\b)", r'\1"', t)
-    t = re.sub(r"(\bM[1-5](?:\s+(?:Pro|Max))?\s+)(1[3-6])(?![\"\d.,])", r'\1\2"', t, flags=re.I)
-    t = re.sub(r"\bm([1-5])\b", r"M\1", t)
-    t = re.sub(r"\b(M[1-5])\s+(pro|max)\b", lambda m: m.group(1) + " " + m.group(2).capitalize(), t, flags=re.I)
-    t = re.sub(r"\s{2,}", " ", t).strip()
-    if not re.search(r"\b20[12]\d\b", t):
-        y = model_year(t)
-        if y:
-            t += " %d" % y
-    return t
+def partiya_code(v):
+    """Billz «Partiya» qiymati -> US / UZ / KR (notanish bo'lsa — o'zi, katta harfda)."""
+    s = str(v or "").upper().strip()
+    if not s:
+        return ""
+    if re.search(r"\b(US|USA|AQSH|AMERIKA|АМЕРИКА|США)\b", s):
+        return "US"
+    if re.search(r"\b(UZ|UZB|O'?ZB\w*|УЗБ\w*)\b", s):
+        return "UZ"
+    if re.search(r"\b(KR|KOR|KOREA|KOREYA|КОРЕЯ)\b", s):
+        return "KR"
+    return s
 
 
-def model_tag(title):
-    words = []
-    for w in re.split(r"\s+", str(title or "")):
-        w2 = re.sub(r"[^\w]", "", w)
-        if not w2 or '"' in w or "”" in w or "″" in w or "/" in w:
-            continue
-        if w2.isdigit():          # 14", 2021 va h.k. tushib qoladi
-            continue
-        if re.fullmatch(r"\d+(gb|tb|inch|dyum)", w2, re.I):
-            continue
-        words.append(w2.lower())
-    return ("#" + "".join(words)) if words else ""
+def partiya_tag(code):
+    for c, tag in cfg.PARTIYA:
+        if c == code:
+            return tag
+    return ("#" + re.sub(r"[^\w]", "", code)) if code else ""
+
+
+def title_text(d):
+    """Sarlavha = Nomi + Chip + Ekran + Yili. Eski postlarda — saqlangan «title»."""
+    if not any(k in d for k in ("nomi", "chip", "dyum", "yil")):
+        return d.get("title") or "❓"
+    q = "❓"
+    dy = d.get("dyum")
+    return " ".join([d.get("nomi") or q, d.get("chip") or q, (dy + '"') if dy else q, d.get("yil") or q])
 
 
 def extract(p):
@@ -287,7 +336,7 @@ def extract(p):
     ssd_f = pick_field(fields, k["ssd"], used)
     bat_f = pick_field(fields, k["battery"], used)
     cyc_f = pick_field(fields, k["cycles"], used)
-    chip = pick_field(fields, k["chip"], used)
+    chip_f = field_by(fields, CHIP_KEYS)
 
     # Xotira: "16/512" ko'rinishidagi maydon, yoki alohida RAM/SSD, yoki nomdan
     ram = ssd = ""
@@ -315,15 +364,13 @@ def extract(p):
     if not rang:
         rang = find_color(name)
 
-    all_text = " ".join([name, chip] + [v for _, v in fields])
-    if M_CHIP_RE.search(name + " " + chip):
-        chip_kind = "M"
-    elif INTEL_RE.search(name + " " + chip):
-        chip_kind = "INTEL"
-    else:
-        chip_kind = ""
-    m = REGION_RE.search(all_text)
-    region = "#" + m.group(1) + "A" if m else ""
+    # Sarlavha: Nomi / Chip / Ekran / Yili
+    nomi = nomi_from(sku, name, field_by(fields, MODEL_KEYS))
+    chip = norm_chip(chip_f) or norm_chip(name)
+    dyum = norm_dyum(field_by(fields, SCREEN_KEYS)) or dyum_in_name(name, sku)
+    ym = re.search(r"\b(20[0-3]\d)\b", field_by(fields, YEAR_KEYS)) or re.search(r"\b(20[0-3]\d)\b", name)
+    yil = ym.group(1) if ym else model_year(nomi, chip, dyum)
+    partiya = partiya_code(field_by(fields, PARTIYA_KEYS))
 
     # Narx va qoldiq
     shop_id = settings_shop_id()
@@ -352,11 +399,11 @@ def extract(p):
     serial = serial_of(p)
     return {
         "id": pid, "sku": sku, "name": name,
-        "title": norm_title(clean_title(name, sku) or name),
+        "nomi": nomi, "dyum": dyum, "yil": yil, "partiya": partiya,
         "holat": holat, "rang": rang,
         "cycles": cycles, "health": health, "ram": ram, "ssd": ssd,
         "battery": battery_text(cycles, health), "xotira": memory_text(ram, ssd),
-        "chip": chip_kind, "region": region,
+        "chip": chip,
         "price": price, "old_price": old, "currency": norm_currency(cur), "qty": qty,
         "categories": cats,
         "num": int(nm.group(1)) if nm else 0,
@@ -387,30 +434,44 @@ def distinguish(x):
 
 # ---------- Qoralama ----------
 def warranty_for(x):
-    if x.get("chip") == "M":
+    chip = str(x.get("chip") or "")
+    if re.match(r"M\d", chip):
         return cfg.WARRANTY_M_CHIP
-    if x.get("chip") == "INTEL":
+    if "intel" in chip.lower():
         return cfg.WARRANTY_INTEL
     return ""
 
 
-def auto_tags(title, region):
-    return " ".join(t for t in (model_tag(title), region) if t)
+def model_tag(d):
+    """#macbookprom1pro — nomi + chip."""
+    t = re.sub(r"[^a-z0-9]", "", (str(d.get("nomi") or "") + str(d.get("chip") or "")).lower())
+    return "#" + t if t else ""
+
+
+def auto_tags(d):
+    return " ".join(t for t in (model_tag(d), partiya_tag(d.get("partiya") or "")) if t)
+
+
+def refresh_tags(d):
+    if d.get("auto_tags"):
+        d["tags"] = auto_tags(d)
 
 
 def new_draft(x, brand):
-    return {
+    d = {
         "product_id": x["id"], "sku": x["sku"], "serial": x.get("serial") or "",
-        "title": x["title"], "holat": x["holat"], "rang": x["rang"],
+        "nomi": x["nomi"], "chip": x["chip"], "dyum": x["dyum"], "yil": x["yil"], "partiya": x["partiya"],
+        "holat": x["holat"], "rang": x["rang"],
         "cycles": x["cycles"], "health": x["health"], "ram": x["ram"], "ssd": x["ssd"],
         "kafolat": warranty_for(x), "komplekt": cfg.DEFAULT_KOMPLEKT,
         "price": x["price"], "old_price": x["old_price"], "currency": x["currency"],
         "installment": cfg.INSTALLMENT_DEFAULT,
         "manager": 0,
-        "region": x.get("region") or cfg.DEFAULT_REGION,
-        "tags": auto_tags(x["title"], x.get("region") or cfg.DEFAULT_REGION), "auto_tags": True,
+        "tags": "", "auto_tags": True,
         "brand": brand,
     }
+    d["tags"] = auto_tags(d)
+    return d
 
 
 def missing(d):
@@ -506,7 +567,7 @@ def render(d, b, sold=False):
     L = []
     if sold and cfg.TEXT.get("sold"):
         L += ["<b>%s</b>" % esc(cfg.TEXT["sold"]), ""]
-    L.append("<b>%s</b>" % esc(d.get("title") or q))
+    L.append("<b>%s</b>" % esc(title_text(d)))
     L.append("")
     rows = [
         ("Holati", d.get("holat")),
@@ -596,6 +657,25 @@ def parse_input(field, text, d):
         if not v or not re.fullmatch(r"\d+(?:\.\d+)?\s*(gb|tb)?", t.strip(), re.I):
             return None, "SSD ni yozing, masalan: 512 yoki 1TB"
         return v, None
+    if field == "nomi":
+        low = t.lower()
+        if re.search(r"\bmbp\b|pro", low):
+            return "Macbook Pro", None
+        if re.search(r"\bmba\b|air", low):
+            return "Macbook Air", None
+        return t, None
+    if field == "chip":
+        return norm_chip(t) or t, None
+    if field == "dyum":
+        v = norm_dyum(t)
+        if not v:
+            return None, "Ekranni dyuymda yozing, masalan: 13.3 yoki 14"
+        return v, None
+    if field == "yil":
+        m = re.fullmatch(r"(20[0-3]\d)", t)
+        if not m:
+            return None, "Yilni yozing, masalan: 2020"
+        return m.group(1), None
     if field == "tags":
         words = [w if w.startswith("#") else "#" + w for w in t.replace(",", " ").split()]
         return " ".join(words), None
