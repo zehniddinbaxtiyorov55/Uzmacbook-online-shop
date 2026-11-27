@@ -128,6 +128,31 @@ def grade_from(fields, used):
     return ""
 
 
+def grade_letter(g):
+    """'B Category' / 'B' -> 'B'."""
+    m = re.match(r"\s*([A-Da-d])(?![A-Za-z])", str(g or ""))
+    return m.group(1).upper() if m else ""
+
+
+def scores_for(letter):
+    for g, scores in cfg.GRADE_SCORES:
+        if g == letter:
+            return list(scores)
+    return []
+
+
+def grade_of_score(score):
+    """'8/10' -> 'B'."""
+    for g, scores in cfg.GRADE_SCORES:
+        if score in scores:
+            return g
+    return ""
+
+
+def is_intel(d):
+    return "intel" in str(d.get("chip") or "").lower()
+
+
 def find_color(text):
     low = str(text or "").lower()
     for c in COLORS:
@@ -169,8 +194,10 @@ def memory_text(ram, ssd):
     return "%s/%s GB" % (ram, ssd)
 
 
-def battery_text(cycles, health):
-    """'175 / 86%' (sikl / yomkost). Bittasi yo'q bo'lsa o'rniga ❓."""
+def battery_text(cycles, health, intel=False):
+    """'175 / 86%' (sikl / yomkost). Intel'da yomkost ko'rsatilmaydi: '320 sikl'. Yo'q qismi — ❓."""
+    if intel:
+        return ("%s sikl" % cycles) if cycles else ""
     if not cycles and not health:
         return ""
     return "%s / %s%%" % (cycles or "❓", health or "❓")
@@ -185,6 +212,9 @@ def battery_from(text):
     m = BATTERY_RE2.search(t)
     if m:
         return str(int(m.group(1))), str(int(m.group(2)))
+    m = re.search(r"(\d{1,4})\s*(?:sikl|cycle|цикл)", t, re.I)     # faqat sikl (Intel): '412sikl'
+    if m:
+        return str(int(m.group(1))), ""
     return "", ""
 
 
@@ -330,7 +360,8 @@ def extract(p):
     fields = raw_fields(p)
     used = set()
     k = cfg.BILLZ_FIELDS
-    holat = grade_from(fields, used)
+    grade = grade_letter(grade_from(fields, used))
+    holat = (scores_for(grade) or [""])[0]          # postda 10 ballik baho, standart — kategoriyaning birinchisi
     rang = norm_color(pick_field(fields, k["rang"], used))
     ram_f = pick_field(fields, k["ram"], used)
     ssd_f = pick_field(fields, k["ssd"], used)
@@ -400,9 +431,9 @@ def extract(p):
     return {
         "id": pid, "sku": sku, "name": name,
         "nomi": nomi, "dyum": dyum, "yil": yil, "partiya": partiya,
-        "holat": holat, "rang": rang,
+        "grade": grade, "holat": holat, "rang": rang,
         "cycles": cycles, "health": health, "ram": ram, "ssd": ssd,
-        "battery": battery_text(cycles, health), "xotira": memory_text(ram, ssd),
+        "battery": battery_text(cycles, health, "intel" in chip.lower()), "xotira": memory_text(ram, ssd),
         "chip": chip,
         "price": price, "old_price": old, "currency": norm_currency(cur), "qty": qty,
         "categories": cats,
@@ -427,8 +458,7 @@ def distinguish(x):
     """Bir xil artikulli tovarlarni ajratadigan qisqa yozuv: seriya oxiri, bo'lmasa xarakteristikalar."""
     if x.get("serial"):
         return "…" + x["serial"][-4:]
-    holat = (x.get("holat") or "").replace(" Category", "")
-    bits = [b for b in (holat, x.get("rang"), x.get("xotira")) if b]
+    bits = [b for b in (x.get("grade"), x.get("rang"), x.get("xotira")) if b]
     return ", ".join(bits) or "ID " + str(x.get("id", ""))[-6:]
 
 
@@ -461,7 +491,7 @@ def new_draft(x, brand):
     d = {
         "product_id": x["id"], "sku": x["sku"], "serial": x.get("serial") or "",
         "nomi": x["nomi"], "chip": x["chip"], "dyum": x["dyum"], "yil": x["yil"], "partiya": x["partiya"],
-        "holat": x["holat"], "rang": x["rang"],
+        "grade": x.get("grade", ""), "holat": x["holat"], "rang": x["rang"],
         "cycles": x["cycles"], "health": x["health"], "ram": x["ram"], "ssd": x["ssd"],
         "kafolat": warranty_for(x), "komplekt": cfg.DEFAULT_KOMPLEKT,
         "price": x["price"], "old_price": x["old_price"], "currency": x["currency"],
@@ -477,6 +507,8 @@ def new_draft(x, brand):
 def missing(d):
     out = []
     for k in REQUIRED:
+        if k == "health" and is_intel(d):
+            continue                                 # Intel'da yomkost ko'rsatilmaydi
         v = d.get(k)
         if k == "price":
             try:
@@ -572,7 +604,7 @@ def render(d, b, sold=False):
     rows = [
         ("Holati", d.get("holat")),
         ("Rangi", d.get("rang")),
-        ("Battery", battery_text(d.get("cycles"), d.get("health"))),
+        ("Battery", battery_text(d.get("cycles"), d.get("health"), is_intel(d))),
         ("Xotira", memory_text(d.get("ram"), d.get("ssd"))),
         ("Kafolat", d.get("kafolat")),
         ("Komplektda", d.get("komplekt")),
@@ -680,7 +712,12 @@ def parse_input(field, text, d):
         words = [w if w.startswith("#") else "#" + w for w in t.replace(",", " ").split()]
         return " ".join(words), None
     if field == "holat":
-        return norm_holat(t), None
+        m = re.fullmatch(r"(10|[1-9])\s*(?:/\s*10)?", t)
+        if not m:
+            return None, "Bahoni yozing, masalan: 8/10"
+        score = "%s/10" % m.group(1)
+        d["grade"] = grade_of_score(score) or d.get("grade", "")
+        return score, None
     if field == "rang":
         return norm_color(t), None
     return t, None

@@ -71,9 +71,16 @@ KAFOLAT_OPTIONS = [("90 kun", "90 kun"), ("30 kun", "30 kun")]
 NOMI_OPTIONS = ["Macbook Pro", "Macbook Air"]
 DYUM_OPTIONS = ["13", "13.3", "13.6", "14", "15", "15.3", "16"]
 KOMPLEKT_OPTIONS = [("Zaryadka", "Zaryadka!"), ("Full box", "Full box!")]
-# Holati va Rangi: shu variantlar + Billz'dagi qiymatlar + «✍️ Qo'lda yozish»
+# Holati — postda 10 ballik baho, Billz'dagi kategoriyaga qarab.
+# Tahrirlashda shu baholar tugma bo'lib chiqadi. Birinchisi — standart (Billz kategoriyasidan).
+GRADE_SCORES = [
+    ("A", ["9/10", "10/10"]),
+    ("B", ["7/10", "8/10"]),
+    ("C", ["5/10", "6/10", "4/10"]),
+    ("D", ["3/10", "2/10", "1/10"]),
+]
+# Rangi: shu variantlar + Billz'dagi qiymatlar + «✍️ Qo'lda yozish»
 OPTIONS = {
-    "holat": ["A Category", "B Category", "C Category", "D Category"],
     "rang": ["Silver", "Space Gray", "Space Black", "Gold", "Midnight", "Starlight", "Sky Blue"],
 }
 

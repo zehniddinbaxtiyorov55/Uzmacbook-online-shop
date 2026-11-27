@@ -68,7 +68,7 @@ PROMPTS = {
     "ssd": "💾 SSD ni yozing, masalan: 512 yoki 1TB",
     "price": "💵 Narxni yozing, masalan: 889  (so'mda bo'lsa: 8 900 000 so'm)",
     "tags": "#️⃣ Teglarni yozing, masalan: #macbookprom1pro #LLA",
-    "holat": "🏷 Holatini yozing, masalan: B Category",
+    "holat": "🏷 Holati bahosini yozing, masalan: 8/10",
     "rang": "🎨 Rangini yozing, masalan: Silver",
 }
 # Qo'lda kiritilgandan keyin qaysi menyuga qaytiladi (bo'lmasa — tahrirlash menyusi)
@@ -544,10 +544,11 @@ def edit_text(dr, note=""):
     lines = [note, ""] if note else []
     lines += ["✏️ <b>Qaysi qismini tahrirlaymiz?</b>", "",
               "📝 Sarlavha: %s" % esc(pf.title_text(d)),
-              "🏷 Holati: %s" % val(d.get("holat")),
+              "🏷 Holati: %s" % holat_label(d),
               "🎨 Rangi: %s" % val(d.get("rang")),
-              "🔋 Battery: sikl %s / yomkost %s" % (val(d.get("cycles")),
-                                                    val(d.get("health")) + ("%" if d.get("health") else "")),
+              ("🔋 Battery: sikl %s (Intel — yomkost ko'rsatilmaydi)" % val(d.get("cycles")) if pf.is_intel(d) else
+               "🔋 Battery: sikl %s / yomkost %s" % (val(d.get("cycles")),
+                                                     val(d.get("health")) + ("%" if d.get("health") else ""))),
               "💾 Xotira: RAM %s / SSD %s" % (val(d.get("ram")) + (" GB" if d.get("ram") else ""),
                                              val(ssd_label(d.get("ssd")))),
               "🛡 Kafolat: %s" % val(d.get("kafolat")),
@@ -557,6 +558,13 @@ def edit_text(dr, note=""):
               "🌎 Partiya: %s" % partiya_label(d.get("partiya")),
               "", "O'zgarishlar yuqoridagi postda darhol ko'rinadi. Tugatgach «✅ Tamom» ni bosing."]
     return "\n".join(lines)
+
+
+def holat_label(d):
+    if not d.get("holat"):
+        return "❓" + (" (%s kategoriya)" % esc(d["grade"]) if d.get("grade") else "")
+    g = d.get("grade") or pf.grade_of_score(d["holat"])
+    return esc(d["holat"]) + (" (%s kategoriya)" % esc(g) if g else "")
 
 
 def partiya_label(code):
@@ -634,11 +642,14 @@ def section_view(dr, sec):
         rows = [[(mark(c == d.get("partiya"), "%s (%s)" % (c, tag)), "pm:o:partiya:%d" % i)
                  for i, (c, tag) in enumerate(cfg.PARTIYA)], [back]]
     elif sec == "battery":
-        text = ("🔋 <b>Battery</b> — qaysi qismini o'zgartiramiz?\nHozir: %s"
-                % val(pf.battery_text(d.get("cycles"), d.get("health"))))
-        rows = [[("🔄 Sikl: %s" % (d.get("cycles") or "❓"), "pm:w:cycles"),
-                 ("🔋 Yomkost: %s" % ((d.get("health") + "%") if d.get("health") else "❓"), "pm:w:health")],
-                [back]]
+        intel = pf.is_intel(d)
+        text = ("🔋 <b>Battery</b> — %s\nHozir: %s"
+                % ("Intel'da faqat sikl ko'rsatiladi:" if intel else "qaysi qismini o'zgartiramiz?",
+                   val(pf.battery_text(d.get("cycles"), d.get("health"), intel))))
+        row = [("🔄 Sikl: %s" % (d.get("cycles") or "❓"), "pm:w:cycles")]
+        if not intel:
+            row.append(("🔋 Yomkost: %s" % ((d.get("health") + "%") if d.get("health") else "❓"), "pm:w:health"))
+        rows = [row, [back]]
     elif sec == "xotira":
         text = ("💾 <b>Xotira</b> — qaysi qismini o'zgartiramiz?\nHozir: %s"
                 % val(pf.memory_text(d.get("ram"), d.get("ssd"))))
@@ -660,14 +671,25 @@ def section_view(dr, sec):
         text = "💳 <b>Muddatli to'lov</b> — tanlang:"
         rows = [[(mark(bool(d.get("installment")), "Mavjud"), "pm:o:inst:0"),
                  (mark(not d.get("installment"), "Mavjud emas"), "pm:o:inst:1")], [back]]
-    elif sec in ("holat", "rang"):
+    elif sec == "holat":
+        dr.opts = [(g, sc) for g, scores in cfg.GRADE_SCORES for sc in scores]
+        cur = d.get("holat")
+        rows = []
+        for g, scores in cfg.GRADE_SCORES:
+            rows.append([(mark(sc == cur, "%s · %s" % (g, sc)), "pm:o:holat:%d" % dr.opts.index((g, sc)))
+                         for sc in sorted(scores, key=lambda v: -int(v.split("/")[0]))])
+        rows.append([back])
+        hint = (" Billz'da: <b>%s kategoriya</b>." % esc(d["grade"])) if d.get("grade") else ""
+        text = ("🏷 <b>Holati</b> — bahoni tanlang (har qator — bitta kategoriya).%s\n"
+                "A: 10–9 · B: 8–7 · C: 6–4 · D: 3–1" % hint)
+    elif sec == "rang":
         opts = list(cfg.OPTIONS.get(sec, []))
         opts += [v for v in stock.values(sec) if v not in opts]
         cur = d.get(sec)
         if cur and cur not in opts:
             opts.insert(0, cur)
         dr.opts = opts[:20]
-        text = "%s — tanlang yoki qo'lda yozing:" % ("🏷 <b>Holati</b>" if sec == "holat" else "🎨 <b>Rangi</b>")
+        text = "🎨 <b>Rangi</b> — tanlang yoki qo'lda yozing:"
         rows = pairs([(mark(o == cur, o), "pm:o:%s:%d" % (sec, i)) for i, o in enumerate(dr.opts)])
         rows.append([("✍️ Qo'lda yozish", "pm:w:" + sec), back])
     elif sec == "manager":
@@ -884,7 +906,7 @@ async def cmd_fields(m: Message, command: CommandObject):
                "Kategoriya: %s" % ", ".join(x["categories"]), "", "Billz maydonlari:"]
         out += ["  %s = %s" % (n, v) for n, v in pf.raw_fields(p)] or ["  (yo'q)"]
         out += ["", "Bot olgani:"]
-        for k in ("nomi", "chip", "dyum", "yil", "partiya", "holat", "rang", "battery", "xotira"):
+        for k in ("nomi", "chip", "dyum", "yil", "partiya", "grade", "holat", "rang", "battery", "xotira"):
             out.append("  %s = %s" % (k, x.get(k) or "—"))
         out.append("  narx = %s, qoldiq = %s" % (pf.fmt_money(x["price"], x["currency"]), x["qty"]))
         await m.answer("<pre>%s</pre>" % esc("\n".join(out)[:3800]), parse_mode=H)
@@ -1359,6 +1381,9 @@ async def cb_option(cb: CallbackQuery):
     elif f == "manager":
         dr.d["manager"] = i
         shown, label = v, "Murojaat uchun"
+    elif f == "holat":
+        dr.d["grade"], dr.d["holat"] = v
+        shown, label = "%s (%s kategoriya)" % (v[1], v[0]), "Holati"
     else:
         set_field(dr.d, f, v)
         shown, label = saved_value(f, v), pf.LABELS.get(f, f)
