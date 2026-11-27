@@ -1,6 +1,7 @@
 """Kunlik savdo hisoboti: Billz -> Telegram.
 
-Har kuni 22:00 da (Toshkent) REPORT_TO dagi odamlarga bugungi hisobot boradi:
+Avtomatik kunlik jo'natish STANDART O'CHIQ (REPORT_DAILY=1 qilinsa yoqiladi).
+Yoqilsa, har kuni 22:00 da (Toshkent) REPORT_TO dagi odamlarga bugungi hisobot boradi:
 cheklar, dona, tushum, foyda, marja; har bir chek bo'yicha: qaysi tovar va uning
 xarakteristikalari, qanchaga sotilgani, foydasi, to'lov turlari (naqd, kimning kartasi,
 qarz, trade-in - Billz'dagi to'lov turi nomi bilan) va chekdagi izoh; kun bo'yicha
@@ -9,6 +10,7 @@ Botga istalgan payt yozish mumkin: /hisobot, /hisobot kecha, /hisobot 25.10
 (/hisobot maydonlar - Billz maydon nomlarini ko'rsatadi, sozlash uchun)
 
 Server sozlamalari (.env, hammasi ixtiyoriy):
+  REPORT_DAILY - 1 qilinsa har kuni avtomatik yuboriladi. Standart: 0 (o'chiq)
   REPORT_TO    - kimga: @username yoki Telegram ID, vergul bilan. Standart: @baxtiyorov_zz
                  (u odam botga kamida bir marta /start bosgan bo'lishi kerak)
   REPORT_HOUR  - soat, Toshkent vaqti. Standart: 22
@@ -22,6 +24,7 @@ from aiohttp import web
 log = logging.getLogger("BOT")
 TZ = datetime.timezone(datetime.timedelta(hours=5))  # Toshkent
 REPORT_TO = os.environ.get("REPORT_TO", "@baxtiyorov_zz")
+DAILY = os.environ.get("REPORT_DAILY", "0").strip() == "1"   # kunlik avtomatik hisobot (standart: o'chiq)
 try:
     HOUR = min(23, max(0, int(os.environ.get("REPORT_HOUR", "22"))))
 except ValueError:
@@ -61,11 +64,14 @@ def setup(app, bot, login, state, billz_url, platform, num, url, admin):
 
 
 def start():
-    """Server ishga tushgandan keyin chaqiriladi: 22:00 jadvali va uyg'oq turish."""
-    tasks.append(asyncio.create_task(scheduler()))
+    """Server ishga tushgandan keyin chaqiriladi: 22:00 jadvali (yoqilgan bo'lsa) va uyg'oq turish."""
+    if DAILY:
+        tasks.append(asyncio.create_task(scheduler()))
+        log.info("BOT: kunlik hisobot: har kuni %s:00, kimga: %s", HOUR, REPORT_TO)
+    else:
+        log.info("BOT: kunlik avtomatik hisobot o'chiq (yoqish: .env da REPORT_DAILY=1)")
     if KEEP_AWAKE and ctx.get("url"):
         tasks.append(asyncio.create_task(keep_awake()))
-    log.info("BOT: kunlik hisobot: har kuni %s:00, kimga: %s", HOUR, REPORT_TO)
 
 
 async def ping(_):
