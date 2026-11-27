@@ -172,6 +172,10 @@ class Draft:
         self.preview = []
         self.panel = None
         self.busy = False
+        self.after = None      # "confirm" — holati tanlangach tayyor post ko'rinishiga qaytish
+        self.filt = {}         # ro'yxat filtri: nomi / chip / dyum
+        self.fopts = []
+        self.show_posted = False
 
 
 drafts = {}
@@ -244,8 +248,11 @@ class Stock:
             return items
 
     def visible(self):
-        """Ro'yxatda ko'rinadiganlar (post_config.SHOW). Sotilganini kuzatish esa hammasi bo'yicha."""
-        return [x for x in self.items if x.get("show")]
+        """Ro'yxatda ko'rinadiganlar: post_config.SHOW dagi guruh va admin panelda yashirilmagan
+        (tovar yoki kategoriya — Mini App bilan bir xil qoida). Sotilganini kuzatish esa hammasi bo'yicha."""
+        hidden, cats = db.hidden_ids(), db.hidden_cats()
+        return [x for x in self.items if x.get("show") and x["id"] not in hidden
+                and ((x.get("categories") or ["Boshqa"])[-1] not in cats)]
 
     def find(self, pid):
         return next((x for x in self.items if x["id"] == pid), None)
@@ -417,7 +424,19 @@ def home_kb(user):
 
 
 # ---------- Ro'yxat: qaysi model? ----------
+FILTER_LEVELS = ("nomi", "chip", "dyum")
+
+
+def filter_label(level, v):
+    if level == "nomi":
+        return "💻 " + str(v).replace("Macbook ", "")
+    if level == "dyum":
+        return '%s"' % v
+    return str(v)
+
+
 async def show_list(chat_id, uid, header="", edit=None, typed=False):
+    """Ro'yxat: qidiruv + filtr (Air/Pro → Chip → Ekran) + standart holda faqat kanalga hali chiqmaganlar."""
     dr = drafts.get(uid)
     if not dr:
         return
@@ -431,10 +450,15 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
             kb([[("🔁 Qayta urinish", "pm:ls:retry")], [("❌ Bekor", "pm:x")]]))
         return
     q = dr.query.lower().strip()
-    found = [x for x in items if q in x["search"]] if q else list(items)
-    if typed and q and len(found) == 1:
-        return await choose(chat_id, uid, found[0])
+    base = [x for x in items if q in x["search"]] if q else list(items)
+    if typed and q and len(base) == 1:
+        return await choose(chat_id, uid, base[0])
     posted = db.posted_product_ids()
+    hide_posted = not q and not dr.show_posted          # qidirganda — hammasi chiqadi
+    pool = [x for x in base if not (hide_posted and x["id"] in posted)]
+    n_posted = sum(1 for x in base if x["id"] in posted)
+    f = dr.filt
+    found = [x for x in pool if all(not f.get(k) or x.get(k) == f[k] for k in FILTER_LEVELS)]
     found.sort(key=lambda x: (not (q and x.get("serial", "").lower().endswith(q)),   # seriya oxiri mos kelsa — tepada
                               x["id"] in posted, -x["num"], x["sku"]))
     pages = max(1, -(-len(found) // PAGE))
@@ -442,21 +466,47 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
     chunk = found[dr.page * PAGE:(dr.page + 1) * PAGE]
     dr.list_ids = [x["id"] for x in chunk]
 
+    # Keyingi filtr qadami: hali tanlanmagan birinchi daraja, ichida 2 tadan ko'p variant bo'lsa
+    dr.fopts, frow = [], []
+    for level in FILTER_LEVELS:
+        if f.get(level):
+            continue
+        counts = {}
+        for x in found:
+            if x.get(level):
+                counts[x[level]] = counts.get(x[level], 0) + 1
+        if len(counts) > 1:
+            def order(kv):
+                k = kv[0]
+                if level == "dyum":
+                    try:
+                        return (0, float(k))
+                    except ValueError:
+                        return (1, 0)
+                return (0, k)
+            for v, n in sorted(counts.items(), key=order):
+                dr.fopts.append((level, v))
+                frow.append(("%s (%d)" % (filter_label(level, v), n), "pm:f:%d" % (len(dr.fopts) - 1)))
+            break
+
     lines = [header] if header else []
     lines.append("<b>Qaysi model?</b> Artikul yoki seriyaning oxirgi 4 ta belgisini yozing "
-                 "(masalan <code>0164</code> yoki <code>W1FW</code>) yoki ro'yxatdan tanlang 👇\n"
-                 "Tugmada: artikul · seriya oxiri · narx")
+                 "(masalan <code>0164</code> yoki <code>W1FW</code>) yoki tugmalar bilan toping 👇")
+    path = [filter_label(k, f[k]) for k in FILTER_LEVELS if f.get(k)]
+    if path:
+        lines.append("🔽 Filtr: " + " › ".join(esc(p) for p in path))
     if q:
-        lines.append("🔎 «%s» bo'yicha: %s ta" % (esc(dr.query), len(found)))
+        lines.append("🔎 «%s» bo'yicha" % esc(dr.query))
+    lines.append("Topildi: %d ta%s" % (len(found), " (kanalga chiqmaganlar)" if hide_posted else ""))
     if not found:
-        lines.append("Hech narsa topilmadi. Boshqacha yozib ko'ring.")
+        lines.append("Hech narsa topilmadi. Filtrni tozalang yoki boshqacha yozib ko'ring.")
     if any(x["id"] in posted for x in chunk):
         lines.append("✅ — kanalga avval joylangan")
     dup = {x["sku"] for x in chunk if stock.same_sku(x["sku"]) > 1}
     if dup:
         lines.append("⚠️ Bir xil artikul bir nechta tovarda bor: <code>%s</code>\n"
                      "Seriya raqami oxiri (…) bo'yicha to'g'risini tanlang." % esc(", ".join(sorted(dup))))
-    rows = []
+    rows = pairs(frow, 3)
     for i, x in enumerate(chunk):
         label = ("✅ " if x["id"] in posted else "") + (x["sku"] or x["name"])[:34]
         if x.get("serial"):
@@ -475,12 +525,42 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
         nav.append(("▶️", "pm:pg:%d" % (dr.page + 1)))
     if nav:
         rows.append(nav)
+    extra = []
+    if path:
+        extra.append(("↩️ Filtrni tozalash", "pm:f:reset"))
+    if not q and n_posted:
+        extra.append(("🙈 Joylanganlarni yashirish" if dr.show_posted else "✅ Joylanganlar ham (%d)" % n_posted,
+                      "pm:f:posted"))
+    if extra:
+        rows.append(extra)
     last = [("🔄 Yangilash", "pm:ls:refresh")]
     if q:
         last.append(("🔎 Hammasi", "pm:ls:all"))
     last.append(("❌ Bekor", "pm:x"))
     rows.append(last)
     dr.list_msg = await send_or_edit(chat_id, edit, "\n".join(lines), kb(rows))
+
+
+@router.callback_query(F.data.startswith("pm:f:"))
+async def cb_filter(cb: CallbackQuery):
+    """Filtr tugmalari: Air/Pro → Chip → Ekran; tozalash; joylanganlarni ko'rsatish."""
+    dr = await draft_of(cb)
+    if not dr:
+        return
+    arg = cb.data[5:]
+    if arg == "reset":
+        dr.filt = {}
+    elif arg == "posted":
+        dr.show_posted = not dr.show_posted
+    else:
+        i = int(arg)
+        if i >= len(dr.fopts):
+            return await cb.answer("Ro'yxat yangilandi, qaytadan tanlang", show_alert=True)
+        level, v = dr.fopts[i]
+        dr.filt[level] = v
+    dr.page = 0
+    await cb.answer()
+    await show_list(cb.message.chat.id, cb.from_user.id, edit=cb.message.message_id)
 
 
 async def choose(chat_id, uid, x, list_msg=None):
@@ -535,8 +615,12 @@ def confirm_text(dr):
     return "\n".join(lines)
 
 
-def confirm_kb():
-    return kb([[("✅ Tasdiqlash", "pm:ok"), ("✏️ Tahrirlash", "pm:ed")], [("❌ Bekor qilish", "pm:x")]])
+def confirm_kb(dr=None):
+    rows = []
+    if dr is not None and dr.d and not dr.d.get("holat"):
+        rows.append([("🏷 Holati bahosini tanlang", "pm:e:holat_c")])
+    rows += [[("✅ Tasdiqlash", "pm:ok"), ("✏️ Tahrirlash", "pm:ed")], [("❌ Bekor qilish", "pm:x")]]
+    return kb(rows)
 
 
 def edit_text(dr, note=""):
@@ -672,6 +756,8 @@ def section_view(dr, sec):
         rows = [[(mark(bool(d.get("installment")), "Mavjud"), "pm:o:inst:0"),
                  (mark(not d.get("installment"), "Mavjud emas"), "pm:o:inst:1")], [back]]
     elif sec == "holat":
+        if dr.after == "confirm":
+            back = ("⬅️ Orqaga", "pm:back")
         dr.opts = [(g, sc) for g, scores in cfg.GRADE_SCORES for sc in scores]
         cur = d.get("holat")
         rows = []
@@ -717,7 +803,7 @@ async def show_preview(chat_id, uid):
             dr.preview, _ = await send_post(chat_id, dr.media, render(dr.d))
         except TelegramBadRequest as e:
             await send(chat_id, "⚠️ Postni chiqarib bo'lmadi: %s" % esc(str(e)))
-    m = await send(chat_id, confirm_text(dr), confirm_kb())
+    m = await send(chat_id, confirm_text(dr), confirm_kb(dr))
     dr.panel = m.message_id
 
 
@@ -1122,7 +1208,7 @@ async def on_text(m: Message):
     if not dr:
         dr = drafts[uid] = Draft()
     dr.d = None
-    dr.query, dr.page = text, 0
+    dr.query, dr.page, dr.filt = text, 0, {}
     await safe_delete(m.chat.id, dr.list_msg)
     dr.list_msg = None
     await show_list(m.chat.id, uid, typed=True)
@@ -1282,7 +1368,7 @@ async def cb_list(cb: CallbackQuery):
     if cb.data.startswith("pm:pg:"):
         dr.page = int(cb.data[6:])
     elif cb.data == "pm:ls:all":
-        dr.query, dr.page = "", 0
+        dr.query, dr.page, dr.filt = "", 0, {}
     elif cb.data == "pm:ls:refresh":
         try:
             await stock.products(force=True)
@@ -1320,7 +1406,7 @@ async def cb_edit_menu(cb: CallbackQuery):
     dr = await draft_of(cb)
     if not dr or not dr.d:
         return
-    dr.awaiting = None
+    dr.awaiting, dr.after = None, None
     await safe_delete(cb.message.chat.id, dr.prompt)
     dr.prompt = None
     await cb.answer()
@@ -1336,6 +1422,10 @@ async def cb_section(cb: CallbackQuery):
     dr.awaiting = None
     await safe_delete(chat_id, dr.prompt)
     dr.prompt = None
+    if sec == "holat_c":                       # tayyor post ostidagi tugmadan
+        dr.after, sec = "confirm", "holat"
+    elif sec in SECTIONS:
+        dr.after = None
     if sec in SECTIONS:
         await cb.answer()
         await show_section(chat_id, dr, sec)
@@ -1384,6 +1474,13 @@ async def cb_option(cb: CallbackQuery):
     elif f == "holat":
         dr.d["grade"], dr.d["holat"] = v
         shown, label = "%s (%s kategoriya)" % (v[1], v[0]), "Holati"
+        if dr.after == "confirm":            # tayyor post ko'rinishiga qaytadi
+            dr.after = None
+            await cb.answer("✅")
+            await update_caption(cb.message.chat.id, dr)
+            dr.panel = await send_or_edit(cb.message.chat.id, dr.panel,
+                                          "✅ Holati: %s\n\n%s" % (esc(shown), confirm_text(dr)), confirm_kb(dr))
+            return
     else:
         set_field(dr.d, f, v)
         shown, label = saved_value(f, v), pf.LABELS.get(f, f)
@@ -1411,8 +1508,9 @@ async def cb_back(cb: CallbackQuery):
     dr = await draft_of(cb)
     if not dr or not dr.d:
         return
+    dr.after = None
     await cb.answer()
-    dr.panel = await send_or_edit(cb.message.chat.id, dr.panel, confirm_text(dr), confirm_kb())
+    dr.panel = await send_or_edit(cb.message.chat.id, dr.panel, confirm_text(dr), confirm_kb(dr))
 
 
 @router.callback_query(F.data == "pm:x")
@@ -1510,7 +1608,7 @@ async def do_publish(cb, dr, keys):
             log.info("POST: %s joyladi: %s", cb.from_user.id, dr.d.get("sku"))
         else:
             await send_or_edit(cb.message.chat.id, cb.message.message_id,
-                               "\n".join(results) + "\n\nKanal sozlamasini tekshiring.", confirm_kb())
+                               "\n".join(results) + "\n\nKanal sozlamasini tekshiring.", confirm_kb(dr))
     finally:
         dr.busy = False
 

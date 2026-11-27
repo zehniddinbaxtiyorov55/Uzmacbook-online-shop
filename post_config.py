@@ -72,7 +72,7 @@ NOMI_OPTIONS = ["Macbook Pro", "Macbook Air"]
 DYUM_OPTIONS = ["13", "13.3", "13.6", "14", "15", "15.3", "16"]
 KOMPLEKT_OPTIONS = [("Zaryadka", "Zaryadka!"), ("Full box", "Full box!")]
 # Holati — postda 10 ballik baho, Billz'dagi kategoriyaga qarab.
-# Tahrirlashda shu baholar tugma bo'lib chiqadi. Birinchisi — standart (Billz kategoriyasidan).
+# Bahoni xodim o'zi tanlaydi (standart qo'yilmaydi); Billz'da kategoriya bo'lsa, ko'rsatma sifatida chiqadi.
 GRADE_SCORES = [
     ("A", ["9/10", "10/10"]),
     ("B", ["7/10", "8/10"]),

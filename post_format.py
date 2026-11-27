@@ -361,7 +361,7 @@ def extract(p):
     used = set()
     k = cfg.BILLZ_FIELDS
     grade = grade_letter(grade_from(fields, used))
-    holat = (scores_for(grade) or [""])[0]          # postda 10 ballik baho, standart — kategoriyaning birinchisi
+    holat = ""          # 10 ballik bahoni xodim o'zi tanlaydi (grade — faqat ko'rsatma)
     rang = norm_color(pick_field(fields, k["rang"], used))
     ram_f = pick_field(fields, k["ram"], used)
     ssd_f = pick_field(fields, k["ssd"], used)
