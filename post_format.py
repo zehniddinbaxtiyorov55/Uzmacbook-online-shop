@@ -426,7 +426,7 @@ def set_shop_id(v):
 def distinguish(x):
     """Bir xil artikulli tovarlarni ajratadigan qisqa yozuv: seriya oxiri, bo'lmasa xarakteristikalar."""
     if x.get("serial"):
-        return "…" + x["serial"][-5:]
+        return "…" + x["serial"][-4:]
     holat = (x.get("holat") or "").replace(" Category", "")
     bits = [b for b in (holat, x.get("rang"), x.get("xotira")) if b]
     return ", ".join(bits) or "ID " + str(x.get("id", ""))[-6:]

@@ -8,6 +8,7 @@ Tovar Billz'da sotilsa, kanaldagi postda narx ustidan chiziladi; narx o'zgarsa y
 Admin (POST_ADMINS / post_config.ADMINS) "👥 Ruxsatlar" orqali boshqalarga ruxsat beradi.
 Mijozlar bu bo'limni ko'rmaydi."""
 import asyncio
+import io
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton, InlineKeyboardMa
                            InputMediaVideo, LinkPreviewOptions, Message)
 
 import db
+import item_photos
 import post_config as cfg
 import post_format as pf
 import webapp
@@ -433,15 +435,17 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
     if typed and q and len(found) == 1:
         return await choose(chat_id, uid, found[0])
     posted = db.posted_product_ids()
-    found.sort(key=lambda x: (x["id"] in posted, -x["num"], x["sku"]))
+    found.sort(key=lambda x: (not (q and x.get("serial", "").lower().endswith(q)),   # seriya oxiri mos kelsa — tepada
+                              x["id"] in posted, -x["num"], x["sku"]))
     pages = max(1, -(-len(found) // PAGE))
     dr.page = min(max(dr.page, 0), pages - 1)
     chunk = found[dr.page * PAGE:(dr.page + 1) * PAGE]
     dr.list_ids = [x["id"] for x in chunk]
 
     lines = [header] if header else []
-    lines.append("<b>Qaysi model?</b> Artikulning bir qismini yozing (masalan <code>0164</code> "
-                 "yoki <code>MBA</code>) yoki ro'yxatdan tanlang 👇")
+    lines.append("<b>Qaysi model?</b> Artikul yoki seriyaning oxirgi 4 ta belgisini yozing "
+                 "(masalan <code>0164</code> yoki <code>W1FW</code>) yoki ro'yxatdan tanlang 👇\n"
+                 "Tugmada: artikul · seriya oxiri · narx")
     if q:
         lines.append("🔎 «%s» bo'yicha: %s ta" % (esc(dr.query), len(found)))
     if not found:
@@ -455,7 +459,9 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
     rows = []
     for i, x in enumerate(chunk):
         label = ("✅ " if x["id"] in posted else "") + (x["sku"] or x["name"])[:34]
-        if x["sku"] in dup:
+        if x.get("serial"):
+            label += " · …" + x["serial"][-4:]
+        elif x["sku"] in dup:
             label += " · " + pf.distinguish(x)
         if x["qty"] > 1:
             label += " · %d dona" % x["qty"]
@@ -1467,6 +1473,11 @@ async def do_publish(cb, dr, keys):
             results.append("✅ %s: %s" % (esc(b["name"]), link or "joylandi"))
         if any(r.startswith("✅") for r in results):
             drafts.pop(cb.from_user.id, None)
+            n = await save_item_photos(dr.d["product_id"], dr.media)
+            if n > 0:
+                results.append("🖼 Mini App'ga %d ta rasm qo'yildi" % n)
+            elif n < 0:
+                results.append("⚠️ Rasmlarni Mini App'ga qo'yib bo'lmadi")
             await send_or_edit(cb.message.chat.id, cb.message.message_id,
                                "🎉 <b>Kanalga joylandi</b>\n" + "\n".join(results) +
                                "\n\nBillz'da sotilsa, postdagi narx ustidan o'zi chiziladi.",
@@ -1477,6 +1488,27 @@ async def do_publish(cb, dr, keys):
                                "\n".join(results) + "\n\nKanal sozlamasini tekshiring.", confirm_kb())
     finally:
         dr.busy = False
+
+
+async def save_item_photos(pid, media):
+    """Post rasmlarini Telegram'dan yuklab, Mini App'da aynan shu tovarning rasmi qiladi.
+    Qaytaradi: saqlangan rasmlar soni (-1 — xato). Video olinmaydi."""
+    blobs = []
+    try:
+        for _, kind, fid in sorted(media, key=lambda t: t[0]):
+            if kind != "photo":
+                continue
+            buf = io.BytesIO()
+            await bot().download(fid, destination=buf)
+            blobs.append(buf.getvalue())
+        if not blobs:
+            return 0
+        n = item_photos.replace(pid, blobs)
+        log.info("POST: %s tovariga %s ta rasm Mini App'ga qo'yildi", pid, n)
+        return n
+    except Exception:
+        log.exception("POST: rasmlarni Mini App'ga qo'yib bo'lmadi")
+        return -1
 
 
 # ---------- Sotilganini kuzatish ----------

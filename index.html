@@ -408,6 +408,7 @@ function perMonth(i) {
 }
 function months() { const a = []; for (let m = plan.min; m <= plan.max; m++) a.push(m); return a; }
 function pics(i) {
+  if (i.iphotos && i.iphotos.length) return {list: i.iphotos, stock: false};       // kanal postidagi rasm (aynan shu tovar)
   if (i.photos.length) return {list: i.photos, stock: false};                      // tovarning o'z rasmi (Billz)
   if (i.mphotos && i.mphotos.length) return {list: i.mphotos, stock: false, model: true};  // model rasmi (admin panel)
   return {list: i.stock || [], stock: true};                                        // Apple namunaviy rasmi
