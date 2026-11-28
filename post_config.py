@@ -61,16 +61,26 @@ EMOJI = {
 WARRANTY_M_CHIP = "90 kun"     # Apple M1/M2/M3/M4...
 WARRANTY_INTEL = "30 kun"      # Intel
 DEFAULT_KOMPLEKT = "Zaryadka!"
-DEFAULT_REGION = "#LLA"        # model raqamida region topilmasa, tegga shu qo'shiladi ("" — qo'shilmaydi)
+# Partiya (Billz'dagi «Partiya» maydoni) -> teg. Tahrirlashda shu tugmalar chiqadi.
+PARTIYA = [("US", "#LLA"), ("UZ", "#UZ"), ("KR", "#KHA")]
 INSTALLMENT_DEFAULT = False    # yangi postda muddatli to'lov yoqilgan bo'lsinmi
 
 # ---------- «✏️ Tahrirlash» dagi tugmalar ----------
 # (tugmada ko'rinadigan nom, postga yoziladigan qiymat)
 KAFOLAT_OPTIONS = [("90 kun", "90 kun"), ("30 kun", "30 kun")]
+NOMI_OPTIONS = ["Macbook Pro", "Macbook Air"]
+DYUM_OPTIONS = ["13", "13.3", "13.6", "14", "15", "15.3", "16"]
 KOMPLEKT_OPTIONS = [("Zaryadka", "Zaryadka!"), ("Full box", "Full box!")]
-# Holati va Rangi: shu variantlar + Billz'dagi qiymatlar + «✍️ Qo'lda yozish»
+# Holati — postda 10 ballik baho, Billz'dagi kategoriyaga qarab.
+# Bahoni xodim o'zi tanlaydi (standart qo'yilmaydi); Billz'da kategoriya bo'lsa, ko'rsatma sifatida chiqadi.
+GRADE_SCORES = [
+    ("A", ["9/10", "10/10"]),
+    ("B", ["7/10", "8/10"]),
+    ("C", ["5/10", "6/10", "4/10"]),
+    ("D", ["3/10", "2/10", "1/10"]),
+]
+# Rangi: shu variantlar + Billz'dagi qiymatlar + «✍️ Qo'lda yozish»
 OPTIONS = {
-    "holat": ["A Category", "B Category", "C Category", "D Category"],
     "rang": ["Silver", "Space Gray", "Space Black", "Gold", "Midnight", "Starlight", "Sky Blue"],
 }
 

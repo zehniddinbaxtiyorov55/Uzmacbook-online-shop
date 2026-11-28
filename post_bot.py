@@ -8,6 +8,7 @@ Tovar Billz'da sotilsa, kanaldagi postda narx ustidan chiziladi; narx o'zgarsa y
 Admin (POST_ADMINS / post_config.ADMINS) "👥 Ruxsatlar" orqali boshqalarga ruxsat beradi.
 Mijozlar bu bo'limni ko'rmaydi."""
 import asyncio
+import io
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton, InlineKeyboardMa
                            InputMediaVideo, LinkPreviewOptions, Message)
 
 import db
+import item_photos
 import post_config as cfg
 import post_format as pf
 import webapp
@@ -56,18 +58,24 @@ SETTING_HINTS = {
     "managers": "Menejerlarni yuboring, har qatorda bittasi:\n910130770 | @sherxonjumayev",
 }
 PROMPTS = {
-    "title": "📝 Sarlavhani yozing, masalan: Macbook Pro M1 Pro 14\" 2021",
+    "nomi": "📝 Nomini yozing, masalan: Macbook Pro",
+    "chip": "📝 Chipni yozing, masalan: M1, M1 Pro, M2 Max, Intel Core i7",
+    "dyum": "📝 Ekran dyuymini yozing, masalan: 13.3 yoki 14",
+    "yil": "📝 Yilini yozing, masalan: 2020",
     "cycles": "🔄 Battery siklini yozing, masalan: 175",
     "health": "🔋 Battery yomkostini (foiz) yozing, masalan: 86",
     "ram": "💾 RAM ni yozing (GB), masalan: 16",
     "ssd": "💾 SSD ni yozing, masalan: 512 yoki 1TB",
     "price": "💵 Narxni yozing, masalan: 889  (so'mda bo'lsa: 8 900 000 so'm)",
     "tags": "#️⃣ Teglarni yozing, masalan: #macbookprom1pro #LLA",
-    "holat": "🏷 Holatini yozing, masalan: B Category",
+    "holat": "🏷 Holati bahosini yozing, masalan: 8/10",
     "rang": "🎨 Rangini yozing, masalan: Silver",
 }
 # Qo'lda kiritilgandan keyin qaysi menyuga qaytiladi (bo'lmasa — tahrirlash menyusi)
-RETURN_TO = {"cycles": "battery", "health": "battery", "ram": "xotira", "ssd": "xotira"}
+RETURN_TO = {"cycles": "battery", "health": "battery", "ram": "xotira", "ssd": "xotira",
+             "nomi": "title", "chip": "title", "dyum": "title", "yil": "title"}
+SECTIONS = ("title", "nomi", "chip", "dyum", "yil", "partiya", "battery", "xotira", "kafolat", "komplekt",
+            "inst", "holat", "rang", "manager")
 
 
 # ---------- Ruxsatlar ----------
@@ -164,6 +172,10 @@ class Draft:
         self.preview = []
         self.panel = None
         self.busy = False
+        self.after = None      # "confirm" — holati tanlangach tayyor post ko'rinishiga qaytish
+        self.filt = {}         # ro'yxat filtri: nomi / chip / dyum
+        self.fopts = []
+        self.show_posted = False
 
 
 drafts = {}
@@ -236,8 +248,11 @@ class Stock:
             return items
 
     def visible(self):
-        """Ro'yxatda ko'rinadiganlar (post_config.SHOW). Sotilganini kuzatish esa hammasi bo'yicha."""
-        return [x for x in self.items if x.get("show")]
+        """Ro'yxatda ko'rinadiganlar: post_config.SHOW dagi guruh va admin panelda yashirilmagan
+        (tovar yoki kategoriya — Mini App bilan bir xil qoida). Sotilganini kuzatish esa hammasi bo'yicha."""
+        hidden, cats = db.hidden_ids(), db.hidden_cats()
+        return [x for x in self.items if x.get("show") and x["id"] not in hidden
+                and ((x.get("categories") or ["Boshqa"])[-1] not in cats)]
 
     def find(self, pid):
         return next((x for x in self.items if x["id"] == pid), None)
@@ -409,7 +424,19 @@ def home_kb(user):
 
 
 # ---------- Ro'yxat: qaysi model? ----------
+FILTER_LEVELS = ("nomi", "chip", "dyum")
+
+
+def filter_label(level, v):
+    if level == "nomi":
+        return "💻 " + str(v).replace("Macbook ", "")
+    if level == "dyum":
+        return '%s"' % v
+    return str(v)
+
+
 async def show_list(chat_id, uid, header="", edit=None, typed=False):
+    """Ro'yxat: qidiruv + filtr (Air/Pro → Chip → Ekran) + standart holda faqat kanalga hali chiqmaganlar."""
     dr = drafts.get(uid)
     if not dr:
         return
@@ -423,33 +450,68 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
             kb([[("🔁 Qayta urinish", "pm:ls:retry")], [("❌ Bekor", "pm:x")]]))
         return
     q = dr.query.lower().strip()
-    found = [x for x in items if q in x["search"]] if q else list(items)
-    if typed and q and len(found) == 1:
-        return await choose(chat_id, uid, found[0])
+    base = [x for x in items if q in x["search"]] if q else list(items)
+    if typed and q and len(base) == 1:
+        return await choose(chat_id, uid, base[0])
     posted = db.posted_product_ids()
-    found.sort(key=lambda x: (x["id"] in posted, -x["num"], x["sku"]))
+    hide_posted = not q and not dr.show_posted          # qidirganda — hammasi chiqadi
+    pool = [x for x in base if not (hide_posted and x["id"] in posted)]
+    n_posted = sum(1 for x in base if x["id"] in posted)
+    f = dr.filt
+    found = [x for x in pool if all(not f.get(k) or x.get(k) == f[k] for k in FILTER_LEVELS)]
+    found.sort(key=lambda x: (not (q and x.get("serial", "").lower().endswith(q)),   # seriya oxiri mos kelsa — tepada
+                              x["id"] in posted, -x["num"], x["sku"]))
     pages = max(1, -(-len(found) // PAGE))
     dr.page = min(max(dr.page, 0), pages - 1)
     chunk = found[dr.page * PAGE:(dr.page + 1) * PAGE]
     dr.list_ids = [x["id"] for x in chunk]
 
+    # Keyingi filtr qadami: hali tanlanmagan birinchi daraja, ichida 2 tadan ko'p variant bo'lsa
+    dr.fopts, frow = [], []
+    for level in FILTER_LEVELS:
+        if f.get(level):
+            continue
+        counts = {}
+        for x in found:
+            if x.get(level):
+                counts[x[level]] = counts.get(x[level], 0) + 1
+        if len(counts) > 1:
+            def order(kv):
+                k = kv[0]
+                if level == "dyum":
+                    try:
+                        return (0, float(k))
+                    except ValueError:
+                        return (1, 0)
+                return (0, k)
+            for v, n in sorted(counts.items(), key=order):
+                dr.fopts.append((level, v))
+                frow.append(("%s (%d)" % (filter_label(level, v), n), "pm:f:%d" % (len(dr.fopts) - 1)))
+            break
+
     lines = [header] if header else []
-    lines.append("<b>Qaysi model?</b> Artikulning bir qismini yozing (masalan <code>0164</code> "
-                 "yoki <code>MBA</code>) yoki ro'yxatdan tanlang 👇")
+    lines.append("<b>Qaysi model?</b> Artikul yoki seriyaning oxirgi 4 ta belgisini yozing "
+                 "(masalan <code>0164</code> yoki <code>W1FW</code>) yoki tugmalar bilan toping 👇")
+    path = [filter_label(k, f[k]) for k in FILTER_LEVELS if f.get(k)]
+    if path:
+        lines.append("🔽 Filtr: " + " › ".join(esc(p) for p in path))
     if q:
-        lines.append("🔎 «%s» bo'yicha: %s ta" % (esc(dr.query), len(found)))
+        lines.append("🔎 «%s» bo'yicha" % esc(dr.query))
+    lines.append("Topildi: %d ta%s" % (len(found), " (kanalga chiqmaganlar)" if hide_posted else ""))
     if not found:
-        lines.append("Hech narsa topilmadi. Boshqacha yozib ko'ring.")
+        lines.append("Hech narsa topilmadi. Filtrni tozalang yoki boshqacha yozib ko'ring.")
     if any(x["id"] in posted for x in chunk):
         lines.append("✅ — kanalga avval joylangan")
     dup = {x["sku"] for x in chunk if stock.same_sku(x["sku"]) > 1}
     if dup:
         lines.append("⚠️ Bir xil artikul bir nechta tovarda bor: <code>%s</code>\n"
                      "Seriya raqami oxiri (…) bo'yicha to'g'risini tanlang." % esc(", ".join(sorted(dup))))
-    rows = []
+    rows = pairs(frow, 3)
     for i, x in enumerate(chunk):
         label = ("✅ " if x["id"] in posted else "") + (x["sku"] or x["name"])[:34]
-        if x["sku"] in dup:
+        if x.get("serial"):
+            label += " · …" + x["serial"][-4:]
+        elif x["sku"] in dup:
             label += " · " + pf.distinguish(x)
         if x["qty"] > 1:
             label += " · %d dona" % x["qty"]
@@ -463,12 +525,42 @@ async def show_list(chat_id, uid, header="", edit=None, typed=False):
         nav.append(("▶️", "pm:pg:%d" % (dr.page + 1)))
     if nav:
         rows.append(nav)
+    extra = []
+    if path:
+        extra.append(("↩️ Filtrni tozalash", "pm:f:reset"))
+    if not q and n_posted:
+        extra.append(("🙈 Joylanganlarni yashirish" if dr.show_posted else "✅ Joylanganlar ham (%d)" % n_posted,
+                      "pm:f:posted"))
+    if extra:
+        rows.append(extra)
     last = [("🔄 Yangilash", "pm:ls:refresh")]
     if q:
         last.append(("🔎 Hammasi", "pm:ls:all"))
     last.append(("❌ Bekor", "pm:x"))
     rows.append(last)
     dr.list_msg = await send_or_edit(chat_id, edit, "\n".join(lines), kb(rows))
+
+
+@router.callback_query(F.data.startswith("pm:f:"))
+async def cb_filter(cb: CallbackQuery):
+    """Filtr tugmalari: Air/Pro → Chip → Ekran; tozalash; joylanganlarni ko'rsatish."""
+    dr = await draft_of(cb)
+    if not dr:
+        return
+    arg = cb.data[5:]
+    if arg == "reset":
+        dr.filt = {}
+    elif arg == "posted":
+        dr.show_posted = not dr.show_posted
+    else:
+        i = int(arg)
+        if i >= len(dr.fopts):
+            return await cb.answer("Ro'yxat yangilandi, qaytadan tanlang", show_alert=True)
+        level, v = dr.fopts[i]
+        dr.filt[level] = v
+    dr.page = 0
+    await cb.answer()
+    await show_list(cb.message.chat.id, cb.from_user.id, edit=cb.message.message_id)
 
 
 async def choose(chat_id, uid, x, list_msg=None):
@@ -523,27 +615,46 @@ def confirm_text(dr):
     return "\n".join(lines)
 
 
-def confirm_kb():
-    return kb([[("✅ Tasdiqlash", "pm:ok"), ("✏️ Tahrirlash", "pm:ed")], [("❌ Bekor qilish", "pm:x")]])
+def confirm_kb(dr=None):
+    rows = []
+    if dr is not None and dr.d and not dr.d.get("holat"):
+        rows.append([("🏷 Holati bahosini tanlang", "pm:e:holat_c")])
+    rows += [[("✅ Tasdiqlash", "pm:ok"), ("✏️ Tahrirlash", "pm:ed")], [("❌ Bekor qilish", "pm:x")]]
+    return kb(rows)
 
 
 def edit_text(dr, note=""):
     d = dr.d
     lines = [note, ""] if note else []
     lines += ["✏️ <b>Qaysi qismini tahrirlaymiz?</b>", "",
-              "📝 Sarlavha: %s" % val(d.get("title")),
-              "🏷 Holati: %s" % val(d.get("holat")),
+              "📝 Sarlavha: %s" % esc(pf.title_text(d)),
+              "🏷 Holati: %s" % holat_label(d),
               "🎨 Rangi: %s" % val(d.get("rang")),
-              "🔋 Battery: sikl %s / yomkost %s" % (val(d.get("cycles")),
-                                                    val(d.get("health")) + ("%" if d.get("health") else "")),
+              ("🔋 Battery: sikl %s (Intel — yomkost ko'rsatilmaydi)" % val(d.get("cycles")) if pf.is_intel(d) else
+               "🔋 Battery: sikl %s / yomkost %s" % (val(d.get("cycles")),
+                                                     val(d.get("health")) + ("%" if d.get("health") else ""))),
               "💾 Xotira: RAM %s / SSD %s" % (val(d.get("ram")) + (" GB" if d.get("ram") else ""),
                                              val(ssd_label(d.get("ssd")))),
               "🛡 Kafolat: %s" % val(d.get("kafolat")),
               "📦 Komplekt: %s" % val(d.get("komplekt")),
               "💵 Narx: %s" % (esc(pf.fmt_money(d["price"], d.get("currency"))) if d.get("price") else "❓"),
               "💳 Muddatli to'lov: %s" % ("Mavjud" if d.get("installment") else "Mavjud emas"),
+              "🌎 Partiya: %s" % partiya_label(d.get("partiya")),
               "", "O'zgarishlar yuqoridagi postda darhol ko'rinadi. Tugatgach «✅ Tamom» ni bosing."]
     return "\n".join(lines)
+
+
+def holat_label(d):
+    if not d.get("holat"):
+        return "❓" + (" (%s kategoriya)" % esc(d["grade"]) if d.get("grade") else "")
+    g = d.get("grade") or pf.grade_of_score(d["holat"])
+    return esc(d["holat"]) + (" (%s kategoriya)" % esc(g) if g else "")
+
+
+def partiya_label(code):
+    if not code:
+        return "❓"
+    return "%s (%s)" % (esc(code), esc(pf.partiya_tag(code)))
 
 
 def ssd_label(ssd):
@@ -558,7 +669,7 @@ def edit_kb(dr):
         [("🎨 Rangi", "pm:e:rang"), ("🔋 Battery", "pm:e:battery")],
         [("💾 Xotira", "pm:e:xotira"), ("🛡 Kafolat", "pm:e:kafolat")],
         [("📦 Komplekt", "pm:e:komplekt"), ("💵 Narx", "pm:e:price")],
-        [("💳 Muddatli to'lov", "pm:e:inst")],
+        [("💳 Muddatli to'lov", "pm:e:inst"), ("🌎 Partiya", "pm:e:partiya")],
     ]
     extra = [("🖼 Rasmlar", "pm:e:media"), ("#️⃣ Teglar", "pm:e:tags")]
     if len(pf.manager_lines(brand_cfg(dr.d["brand"]))) > 1:
@@ -576,12 +687,53 @@ def section_view(dr, sec):
     """Bo'lim ichidagi tugmalar: (matn, tugmalar). Variant tanlanadi yoki «qo'lda» yoziladi."""
     d = dr.d
     back = ("⬅️ Orqaga", "pm:ed")
-    if sec == "battery":
-        text = ("🔋 <b>Battery</b> — qaysi qismini o'zgartiramiz?\nHozir: %s"
-                % val(pf.battery_text(d.get("cycles"), d.get("health"))))
-        rows = [[("🔄 Sikl: %s" % (d.get("cycles") or "❓"), "pm:w:cycles"),
-                 ("🔋 Yomkost: %s" % ((d.get("health") + "%") if d.get("health") else "❓"), "pm:w:health")],
+    to_title = ("⬅️ Orqaga", "pm:e:title")
+    if sec == "title":
+        text = ("📝 <b>Sarlavha</b> — qaysi qismini o'zgartiramiz?\nHozir: %s" % esc(pf.title_text(d)))
+        rows = [[("Nomi: %s" % (d.get("nomi") or "❓"), "pm:e:nomi"), ("Chip: %s" % (d.get("chip") or "❓"), "pm:e:chip")],
+                [("Ekran: %s" % ((d.get("dyum") + '"') if d.get("dyum") else "❓"), "pm:e:dyum"),
+                 ("Yili: %s" % (d.get("yil") or "❓"), "pm:e:yil")],
                 [back]]
+    elif sec in ("nomi", "dyum"):
+        opts = list(cfg.NOMI_OPTIONS if sec == "nomi" else cfg.DYUM_OPTIONS)
+        cur = d.get(sec)
+        if cur and cur not in opts:
+            opts.insert(0, cur)
+        dr.opts = opts
+        label = (lambda o: o) if sec == "nomi" else (lambda o: o + '"')
+        text = "📝 <b>%s</b> — tanlang yoki qo'lda yozing:" % pf.LABELS[sec]
+        rows = pairs([(mark(o == cur, label(o)), "pm:o:%s:%d" % (sec, i)) for i, o in enumerate(opts)], 3 if sec == "dyum" else 2)
+        rows.append([("✍️ Qo'lda yozish", "pm:w:" + sec), to_title])
+    elif sec == "chip":
+        opts = [v for v in stock.values("chip") if v][:12]
+        cur = d.get("chip")
+        if cur and cur not in opts:
+            opts.insert(0, cur)
+        dr.opts = opts
+        text = "📝 <b>Chip</b> — tanlang yoki qo'lda yozing:"
+        rows = pairs([(mark(o == cur, o), "pm:o:chip:%d" % i) for i, o in enumerate(opts)])
+        rows.append([("✍️ Qo'lda yozish", "pm:w:chip"), to_title])
+    elif sec == "yil":
+        guess = pf.model_year(d.get("nomi"), d.get("chip"), d.get("dyum"))
+        dr.opts = [guess] if guess else []
+        text = "📝 <b>Yili</b> — %s" % ("modeldan aniqlangani: %s. Tanlang yoki qo'lda yozing:" % guess
+                                       if guess else "qo'lda yozing:")
+        rows = [[(mark(guess == d.get("yil"), guess), "pm:o:yil:0")]] if guess else []
+        rows.append([("✍️ Qo'lda yozish", "pm:w:yil"), to_title])
+    elif sec == "partiya":
+        dr.opts = [c for c, _ in cfg.PARTIYA]
+        text = "🌎 <b>Partiya</b> — tanlang (teg shunga qarab qo'yiladi):"
+        rows = [[(mark(c == d.get("partiya"), "%s (%s)" % (c, tag)), "pm:o:partiya:%d" % i)
+                 for i, (c, tag) in enumerate(cfg.PARTIYA)], [back]]
+    elif sec == "battery":
+        intel = pf.is_intel(d)
+        text = ("🔋 <b>Battery</b> — %s\nHozir: %s"
+                % ("Intel'da faqat sikl ko'rsatiladi:" if intel else "qaysi qismini o'zgartiramiz?",
+                   val(pf.battery_text(d.get("cycles"), d.get("health"), intel))))
+        row = [("🔄 Sikl: %s" % (d.get("cycles") or "❓"), "pm:w:cycles")]
+        if not intel:
+            row.append(("🔋 Yomkost: %s" % ((d.get("health") + "%") if d.get("health") else "❓"), "pm:w:health"))
+        rows = [row, [back]]
     elif sec == "xotira":
         text = ("💾 <b>Xotira</b> — qaysi qismini o'zgartiramiz?\nHozir: %s"
                 % val(pf.memory_text(d.get("ram"), d.get("ssd"))))
@@ -603,14 +755,27 @@ def section_view(dr, sec):
         text = "💳 <b>Muddatli to'lov</b> — tanlang:"
         rows = [[(mark(bool(d.get("installment")), "Mavjud"), "pm:o:inst:0"),
                  (mark(not d.get("installment"), "Mavjud emas"), "pm:o:inst:1")], [back]]
-    elif sec in ("holat", "rang"):
+    elif sec == "holat":
+        if dr.after == "confirm":
+            back = ("⬅️ Orqaga", "pm:back")
+        dr.opts = [(g, sc) for g, scores in cfg.GRADE_SCORES for sc in scores]
+        cur = d.get("holat")
+        rows = []
+        for g, scores in cfg.GRADE_SCORES:
+            rows.append([(mark(sc == cur, "%s · %s" % (g, sc)), "pm:o:holat:%d" % dr.opts.index((g, sc)))
+                         for sc in sorted(scores, key=lambda v: -int(v.split("/")[0]))])
+        rows.append([back])
+        hint = (" Billz'da: <b>%s kategoriya</b>." % esc(d["grade"])) if d.get("grade") else ""
+        text = ("🏷 <b>Holati</b> — bahoni tanlang (har qator — bitta kategoriya).%s\n"
+                "A: 10–9 · B: 8–7 · C: 6–4 · D: 3–1" % hint)
+    elif sec == "rang":
         opts = list(cfg.OPTIONS.get(sec, []))
         opts += [v for v in stock.values(sec) if v not in opts]
         cur = d.get(sec)
         if cur and cur not in opts:
             opts.insert(0, cur)
         dr.opts = opts[:20]
-        text = "%s — tanlang yoki qo'lda yozing:" % ("🏷 <b>Holati</b>" if sec == "holat" else "🎨 <b>Rangi</b>")
+        text = "🎨 <b>Rangi</b> — tanlang yoki qo'lda yozing:"
         rows = pairs([(mark(o == cur, o), "pm:o:%s:%d" % (sec, i)) for i, o in enumerate(dr.opts)])
         rows.append([("✍️ Qo'lda yozish", "pm:w:" + sec), back])
     elif sec == "manager":
@@ -638,7 +803,7 @@ async def show_preview(chat_id, uid):
             dr.preview, _ = await send_post(chat_id, dr.media, render(dr.d))
         except TelegramBadRequest as e:
             await send(chat_id, "⚠️ Postni chiqarib bo'lmadi: %s" % esc(str(e)))
-    m = await send(chat_id, confirm_text(dr), confirm_kb())
+    m = await send(chat_id, confirm_text(dr), confirm_kb(dr))
     dr.panel = m.message_id
 
 
@@ -673,6 +838,27 @@ async def ask_text(chat_id, dr, field):
     dr.prompt = m.message_id
 
 
+def set_field(d, field, value):
+    """Qiymatni yozadi; nomi/chip/partiya o'zgarsa teg, chip o'zgarsa kafolat ham yangilanadi."""
+    if field == "chip":
+        old_auto = pf.warranty_for({"chip": d.get("chip")})
+        if d.get("kafolat") in ("", old_auto):
+            d["kafolat"] = pf.warranty_for({"chip": value}) or d.get("kafolat")
+    d[field] = value
+    if field == "tags":
+        d["auto_tags"] = False
+    if field in ("nomi", "chip", "partiya"):
+        pf.refresh_tags(d)
+
+
+def saved_value(field, value):
+    if field == "dyum" and value:
+        return value + '"'
+    if field == "partiya" and value:
+        return "%s (%s)" % (value, pf.partiya_tag(value))
+    return value
+
+
 def saved_note(field, value, d):
     if field == "price":
         value = pf.fmt_money(value, d.get("currency")) if value else "—"
@@ -682,6 +868,8 @@ def saved_note(field, value, d):
         value = "%s GB" % value
     elif field == "ssd":
         value = ssd_label(value)
+    else:
+        value = saved_value(field, value)
     return "✅ Saqlandi: %s — %s" % (pf.LABELS.get(field, field), esc(value or "—"))
 
 
@@ -804,7 +992,7 @@ async def cmd_fields(m: Message, command: CommandObject):
                "Kategoriya: %s" % ", ".join(x["categories"]), "", "Billz maydonlari:"]
         out += ["  %s = %s" % (n, v) for n, v in pf.raw_fields(p)] or ["  (yo'q)"]
         out += ["", "Bot olgani:"]
-        for k in ("title", "holat", "rang", "battery", "xotira", "chip", "region"):
+        for k in ("nomi", "chip", "dyum", "yil", "partiya", "grade", "holat", "rang", "battery", "xotira"):
             out.append("  %s = %s" % (k, x.get(k) or "—"))
         out.append("  narx = %s, qoldiq = %s" % (pf.fmt_money(x["price"], x["currency"]), x["qty"]))
         await m.answer("<pre>%s</pre>" % esc("\n".join(out)[:3800]), parse_mode=H)
@@ -1001,11 +1189,7 @@ async def on_text(m: Message):
         if err:
             await m.answer("⚠️ " + err)
             return
-        dr.d[field] = val
-        if field == "title" and dr.d.get("auto_tags"):      # teg sarlavhadan yangilanadi
-            dr.d["tags"] = pf.auto_tags(val, dr.d.get("region"))
-        if field == "tags":
-            dr.d["auto_tags"] = False
+        set_field(dr.d, field, val)
         dr.awaiting = None
         await safe_delete(m.chat.id, m.message_id)
         await safe_delete(m.chat.id, dr.prompt)
@@ -1024,7 +1208,7 @@ async def on_text(m: Message):
     if not dr:
         dr = drafts[uid] = Draft()
     dr.d = None
-    dr.query, dr.page = text, 0
+    dr.query, dr.page, dr.filt = text, 0, {}
     await safe_delete(m.chat.id, dr.list_msg)
     dr.list_msg = None
     await show_list(m.chat.id, uid, typed=True)
@@ -1087,7 +1271,7 @@ async def cb_posts(cb: CallbackQuery):
         lines = ["📋 <b>Oxirgi postlar</b> (🟢 sotuvda, 🔴 sotildi, ⚪ o'chirilgan)", ""]
         for r in rows:
             d = json.loads(r["data"] or "{}")
-            sku = esc(r["sku"] or d.get("title") or "?")
+            sku = esc(r["sku"] or pf.title_text(d) or "?")
             name = '<a href="%s">%s</a>' % (esc(r["link"]), sku) if r["link"] else sku
             price = pf.fmt_money(d.get("price") or 0, d.get("currency") or "USD")
             day = time.strftime("%d.%m", time.gmtime((r["created_at"] or 0) + db.TZ_SHIFT))
@@ -1184,7 +1368,7 @@ async def cb_list(cb: CallbackQuery):
     if cb.data.startswith("pm:pg:"):
         dr.page = int(cb.data[6:])
     elif cb.data == "pm:ls:all":
-        dr.query, dr.page = "", 0
+        dr.query, dr.page, dr.filt = "", 0, {}
     elif cb.data == "pm:ls:refresh":
         try:
             await stock.products(force=True)
@@ -1222,7 +1406,7 @@ async def cb_edit_menu(cb: CallbackQuery):
     dr = await draft_of(cb)
     if not dr or not dr.d:
         return
-    dr.awaiting = None
+    dr.awaiting, dr.after = None, None
     await safe_delete(cb.message.chat.id, dr.prompt)
     dr.prompt = None
     await cb.answer()
@@ -1238,7 +1422,11 @@ async def cb_section(cb: CallbackQuery):
     dr.awaiting = None
     await safe_delete(chat_id, dr.prompt)
     dr.prompt = None
-    if sec in ("battery", "xotira", "kafolat", "komplekt", "inst", "holat", "rang", "manager"):
+    if sec == "holat_c":                       # tayyor post ostidagi tugmadan
+        dr.after, sec = "confirm", "holat"
+    elif sec in SECTIONS:
+        dr.after = None
+    if sec in SECTIONS:
         await cb.answer()
         await show_section(chat_id, dr, sec)
     elif sec == "media":
@@ -1283,12 +1471,26 @@ async def cb_option(cb: CallbackQuery):
     elif f == "manager":
         dr.d["manager"] = i
         shown, label = v, "Murojaat uchun"
+    elif f == "holat":
+        dr.d["grade"], dr.d["holat"] = v
+        shown, label = "%s (%s kategoriya)" % (v[1], v[0]), "Holati"
+        if dr.after == "confirm":            # tayyor post ko'rinishiga qaytadi
+            dr.after = None
+            await cb.answer("✅")
+            await update_caption(cb.message.chat.id, dr)
+            dr.panel = await send_or_edit(cb.message.chat.id, dr.panel,
+                                          "✅ Holati: %s\n\n%s" % (esc(shown), confirm_text(dr)), confirm_kb(dr))
+            return
     else:
-        dr.d[f] = v
-        shown, label = v, pf.LABELS.get(f, f)
+        set_field(dr.d, f, v)
+        shown, label = saved_value(f, v), pf.LABELS.get(f, f)
     await cb.answer("✅")
     await update_caption(cb.message.chat.id, dr)
-    await show_edit(cb.message.chat.id, dr, "✅ Saqlandi: %s — %s" % (label, esc(shown)))
+    note = "✅ Saqlandi: %s — %s" % (label, esc(shown))
+    if f in RETURN_TO:
+        await show_section(cb.message.chat.id, dr, RETURN_TO[f], note)
+    else:
+        await show_edit(cb.message.chat.id, dr, note)
 
 
 @router.callback_query(F.data == "pm:done")
@@ -1306,8 +1508,9 @@ async def cb_back(cb: CallbackQuery):
     dr = await draft_of(cb)
     if not dr or not dr.d:
         return
+    dr.after = None
     await cb.answer()
-    dr.panel = await send_or_edit(cb.message.chat.id, dr.panel, confirm_text(dr), confirm_kb())
+    dr.panel = await send_or_edit(cb.message.chat.id, dr.panel, confirm_text(dr), confirm_kb(dr))
 
 
 @router.callback_query(F.data == "pm:x")
@@ -1393,6 +1596,11 @@ async def do_publish(cb, dr, keys):
             results.append("✅ %s: %s" % (esc(b["name"]), link or "joylandi"))
         if any(r.startswith("✅") for r in results):
             drafts.pop(cb.from_user.id, None)
+            n = await save_item_photos(dr.d["product_id"], dr.media)
+            if n > 0:
+                results.append("🖼 Mini App'ga %d ta rasm qo'yildi" % n)
+            elif n < 0:
+                results.append("⚠️ Rasmlarni Mini App'ga qo'yib bo'lmadi")
             await send_or_edit(cb.message.chat.id, cb.message.message_id,
                                "🎉 <b>Kanalga joylandi</b>\n" + "\n".join(results) +
                                "\n\nBillz'da sotilsa, postdagi narx ustidan o'zi chiziladi.",
@@ -1400,9 +1608,30 @@ async def do_publish(cb, dr, keys):
             log.info("POST: %s joyladi: %s", cb.from_user.id, dr.d.get("sku"))
         else:
             await send_or_edit(cb.message.chat.id, cb.message.message_id,
-                               "\n".join(results) + "\n\nKanal sozlamasini tekshiring.", confirm_kb())
+                               "\n".join(results) + "\n\nKanal sozlamasini tekshiring.", confirm_kb(dr))
     finally:
         dr.busy = False
+
+
+async def save_item_photos(pid, media):
+    """Post rasmlarini Telegram'dan yuklab, Mini App'da aynan shu tovarning rasmi qiladi.
+    Qaytaradi: saqlangan rasmlar soni (-1 — xato). Video olinmaydi."""
+    blobs = []
+    try:
+        for _, kind, fid in sorted(media, key=lambda t: t[0]):
+            if kind != "photo":
+                continue
+            buf = io.BytesIO()
+            await bot().download(fid, destination=buf)
+            blobs.append(buf.getvalue())
+        if not blobs:
+            return 0
+        n = item_photos.replace(pid, blobs)
+        log.info("POST: %s tovariga %s ta rasm Mini App'ga qo'yildi", pid, n)
+        return n
+    except Exception:
+        log.exception("POST: rasmlarni Mini App'ga qo'yib bo'lmadi")
+        return -1
 
 
 # ---------- Sotilganini kuzatish ----------

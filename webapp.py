@@ -6,6 +6,7 @@ from aiohttp import web
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 from stock_photos import stock_photos
 import db
+import item_photos
 import model_photos
 import settings
 
@@ -245,9 +246,10 @@ def visible(items):
 
 
 def public(i):
-    """Mini App'ga boradigan ko'rinish: maxfiy maydonlarsiz (seriya va h.k.) + model rasmlari."""
+    """Mini App'ga boradigan ko'rinish: maxfiy maydonlarsiz (seriya va h.k.) + model va post rasmlari."""
     out = {k: v for k, v in i.items() if not k.startswith("_")}
     out["mphotos"] = model_photos.urls(i.get("mkey") or "")
+    out["iphotos"] = item_photos.urls(i["id"])   # kanal postining rasmlari (post_bot.py)
     return out
 
 
@@ -299,8 +301,10 @@ async def photos_info(_):
     rows = []
     for i in await load():
         mp = model_photos.urls(i.get("mkey") or "")
-        src = "billz" if i["photos"] else ("model" if mp else ("apple" if i["stock"] else "yo'q"))
-        url = (i["photos"] or mp or i["stock"] or [""])[0]
+        ip = item_photos.urls(i["id"])
+        src = ("post" if ip else "billz" if i["photos"] else
+               "model" if mp else "apple" if i["stock"] else "yo'q")
+        url = (ip or i["photos"] or mp or i["stock"] or [""])[0]
         rows.append({"nom": i["name"], "kategoriya": i["category"], "rasm": src,
                      "guruh": i.get("mlabel") or "",
                      "fayl": url.rsplit("/", 1)[-1] if src == "apple" else url[:80]})
@@ -312,6 +316,14 @@ async def photos_info(_):
 async def model_photo(req):
     """Admin paneldan yuklangan model rasmlari. Fayl nomi har safar yangi — abadiy keshlanadi."""
     p = model_photos.path(req.match_info["key"], req.match_info["name"])
+    if not p:
+        raise web.HTTPNotFound()
+    return web.FileResponse(p, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+async def item_photo(req):
+    """Kanal postidan olingan tovar rasmlari. Fayl nomi har safar yangi — abadiy keshlanadi."""
+    p = item_photos.path(req.match_info["key"], req.match_info["name"])
     if not p:
         raise web.HTTPNotFound()
     return web.FileResponse(p, headers={"Cache-Control": "public, max-age=31536000, immutable"})
@@ -472,6 +484,7 @@ def make_app(bot, billz_products, num):
     app.router.add_get("/api/rate", rate_info)
     app.router.add_get("/api/photos", photos_info)
     app.router.add_get("/mp/{key}/{name}", model_photo)
+    app.router.add_get("/ip/{key}/{name}", item_photo)
     app.router.add_get("/api/products", products)
     app.router.add_post("/api/order", order)
     app.router.add_post("/api/me", me)
