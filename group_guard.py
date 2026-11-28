@@ -1,7 +1,8 @@
 """«📣 Guruhga reklama berish» — guruh himoyasi (Uzmacbook / MagicPro.uz do'kon boti).
 
 - Himoya yoqilgan guruhda cheklangan narsalar (rasm, video, link, boshqa @username) avtomatik
-  o'chiriladi va yuborgan odam tag qilinib: «admindan ruxsat oling» deyiladi.
+  o'chiriladi va yuborgan odam tag qilinib ogohlantiriladi: «iltimos admindan ruxsat so'rang.
+  Agar yana bir bor qaytarilsa ban beraman.» Yana tashlasa — ban va uning guruhdagi barcha xabarlari o'chiriladi.
 - Ozod: admin (POST_ADMINS, @sherxonjumayev), «Ruxsatlar» ro'yxatidagilar, guruh adminlari,
   anonim admin, guruhga bog'langan kanal, botlar.
 - Kanallardan forward: faqat bizning kanallar (Uzmacbook, MagicPro — «Ruxsatlar»ga qo'shilgan kanallar,
@@ -11,7 +12,7 @@
 - Boshqaruv paneli shaxsiy chatda: /start → «📣 Guruhga reklama berish» (faqat admin va ruxsat berilganlar).
 - Guruh xabarlari do'kon botining boshqa qismlariga (salom javobi, post bo'limi, mijozlar bazasi) bormaydi.
 
-Bot guruhda ADMIN bo'lishi va «Xabarlarni o'chirish» huquqiga ega bo'lishi shart."""
+Bot guruhda ADMIN bo'lishi, «Xabarlarni o'chirish» va «Foydalanuvchilarni bloklash» huquqlariga ega bo'lishi shart."""
 import asyncio
 import html
 import json
@@ -42,7 +43,10 @@ KINDS = [("photo", "🖼 Rasm"), ("video", "🎬 Video"), ("link", "🔗 Link va
 KIND_WORDS = {"photo": "rasm", "video": "video", "link": "link", "username": "username",
               "forward": "boshqa kanaldan forward"}
 WARN_TTL = 60          # ogohlantirish necha soniyadan keyin o'chadi (0 — o'chmaydi)
-WARN_GAP = 20          # bir odamga necha soniyada bir marta ogohlantirish (albom/ketma-ket xabar)
+WARN_GAP = 20          # ogohlantirishdan keyin shu soniya ichidagi xabarlar — o'sha urinish (albom, ketma-ket)
+STRIKE_DAYS = 30       # ogohlantirish necha kun eslab qolinadi (shu muddatda yana tashlasa — ban)
+WARN_TEXT = "%s iltimos admindan ruxsat so'rang.\nAgar yana bir bor qaytarilsa ban beraman."
+BAN_TEXT = "🚫 %s qayta reklama tashlagani uchun ban qilindi."
 ADMIN_CACHE = 600      # guruh adminlari ro'yxati necha soniya eslab qolinadi
 
 LINK_RE = re.compile(r"(?i)(?:https?://|www\.|\bt\.me/|\btelegram\.(?:me|dog)/)[^\s<>\"']+")
@@ -54,6 +58,7 @@ TG_HOSTS = ("t.me", "telegram.me", "telegram.dog")
 
 _admin_cache = {}     # (chat_id, user_id) -> (admin_mi, vaqt)
 _last_warn = {}       # (chat_id, kim) -> vaqt
+_last_album = {}      # (chat_id, kim) -> oxirgi albom (media_group_id)
 _fail_told = {}       # chat_id -> vaqt (o'chirish huquqi yo'qligi haqida admin ogohlantirildi)
 _chat_cache = {}      # get_chat natijalari (kanal username'i, guruhga bog'langan kanal)
 grant_wait = set()    # ruxsat beriladigan odamni kutayotgan adminlar
@@ -107,6 +112,30 @@ def acl():
 
 def save_acl(lst):
     db.set_setting("guard.allowed", json.dumps(lst, ensure_ascii=False) if lst else "")
+
+
+def ban_on():
+    return (db.get_setting("guard.ban") or "1") == "1"
+
+
+def _strikes():
+    d = _json("guard.strikes", {})
+    old = time.time() - STRIKE_DAYS * 86400
+    return {k: v for k, v in d.items() if isinstance(v, (int, float)) and v > old}
+
+
+def has_strike(chat_id, who):
+    return "%s:%s" % (chat_id, who) in _strikes()
+
+
+def set_strike(chat_id, who, on=True):
+    d = _strikes()
+    k = "%s:%s" % (chat_id, who)
+    if on:
+        d[k] = time.time()
+    else:
+        d.pop(k, None)
+    db.set_setting("guard.strikes", json.dumps(d) if d else "")
 
 
 def extra_words():
@@ -333,8 +362,12 @@ async def violations(m):
 
 # ---------- Guruh xabarini tekshirish ----------
 def _who(m):
+    """(kim, ko'k tag): @username — Telegram o'zi ko'k qiladi; username yo'q bo'lsa ismi link bilan."""
     if m.sender_chat is not None and m.sender_chat.id != m.chat.id:
-        return m.sender_chat.id, "<b>%s</b>" % html.escape(m.sender_chat.title or "Kanal")
+        sc = m.sender_chat
+        if sc.username:
+            return sc.id, "@" + html.escape(sc.username)
+        return sc.id, "<b>%s</b>" % html.escape(sc.title or "Kanal")
     u = m.from_user
     if u.username:
         return u.id, "@" + html.escape(u.username)
@@ -377,18 +410,68 @@ async def check(m):
         return
     who_id, tag = _who(m)
     key = (m.chat.id, who_id)
-    if time.time() - _last_warn.get(key, 0) < WARN_GAP:
-        return                                 # albomning qolgan rasmlari — bitta ogohlantirish yetadi
-    _last_warn[key] = time.time()
-    what = KIND_WORDS["forward"] if "forward" in found else ", ".join(KIND_WORDS[k] for k in found)
+    now = time.time()
+    album = m.media_group_id
+    same = (album and _last_album.get(key) == album) or now - _last_warn.get(key, 0) < WARN_GAP
+    if album:
+        _last_album[key] = album
+    if same:
+        return                                 # o'sha urinish (albomning qolgan rasmlari) — o'chirildi, yetadi
+    if ban_on() and has_strike(m.chat.id, who_id):
+        if await punish(m, who_id, tag):
+            return
+    else:
+        set_strike(m.chat.id, who_id)
+    _last_warn[key] = now
+    await say(m.chat.id, WARN_TEXT % tag)
+
+
+async def say(chat_id, text):
     try:
-        msg = await ctx["bot"].send_message(
-            m.chat.id, "%s, guruhga %s tashlash uchun admindan ruxsat oling: %s" % (tag, what, admin_mention()),
-            parse_mode=H, link_preview_options=NO_PREVIEW)
+        msg = await ctx["bot"].send_message(chat_id, text, parse_mode=H, link_preview_options=NO_PREVIEW)
         if WARN_TTL:
             asyncio.create_task(_delete_later(msg, WARN_TTL))
     except TelegramAPIError:
-        log.exception("GUARD: ogohlantirish yuborilmadi")
+        log.exception("GUARD: guruhga xabar yuborilmadi")
+
+
+def _who_text(m, who_id):
+    if who_id < 0:
+        sc = m.sender_chat
+        return "📢 %s%s" % (sc.title or "Kanal", (" @" + sc.username) if sc.username else "")
+    u = m.from_user
+    return "%s%s (ID %d)" % (u.full_name or "Foydalanuvchi", (" @" + u.username) if u.username else "", u.id)
+
+
+async def punish(m, who_id, tag):
+    """Ikkinchi marta: ban + guruhdagi barcha xabarlarini o'chirish. True — ban berildi."""
+    b = ctx["bot"]
+    try:
+        if who_id < 0:
+            await b.ban_chat_sender_chat(m.chat.id, who_id)
+        else:
+            await b.ban_chat_member(m.chat.id, who_id, revoke_messages=True)
+    except TelegramAPIError as e:
+        log.warning("GUARD: %s guruhida ban berib bo'lmadi: %s", m.chat.id, e)
+        if time.time() - _fail_told.get(("ban", m.chat.id), 0) > 3600:
+            _fail_told[("ban", m.chat.id)] = time.time()
+            await post_bot.notify("⚠️ «%s» guruhida qayta reklama tashlaganga ban bera olmadim. Botga guruhda "
+                                  "«Foydalanuvchilarni bloklash» huquqini bering." % html.escape(m.chat.title or ""))
+        return False
+    set_strike(m.chat.id, who_id, on=False)
+    _last_warn[(m.chat.id, who_id)] = time.time()
+    await say(m.chat.id, BAN_TEXT % tag)
+    text = ("🚫 «%s» guruhida <b>%s</b> qayta reklama tashlagani uchun ban qilindi%s."
+            % (html.escape(m.chat.title or ""), html.escape(_who_text(m, who_id)),
+               "" if who_id < 0 else ", guruhdagi barcha xabarlari o'chirildi"))
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text="♻️ Bandan chiqarish", callback_data="gg:unban:%s:%s" % (m.chat.id, who_id))]])
+    for uid in post_bot.admin_ids():
+        try:
+            await b.send_message(uid, text, parse_mode=H, reply_markup=markup)
+        except TelegramAPIError:
+            pass
+    return True
 
 
 async def group_command(m):
@@ -452,7 +535,8 @@ async def on_bot_status(u: ChatMemberUpdated):
     if u.old_chat_member.status in ("left", "kicked") or (st == "administrator"
                                                           and u.old_chat_member.status != "administrator"):
         state = "admin" if st == "administrator" else "a'zo (admin emas)"
-        tip = "" if st == "administrator" else "\nHimoya ishlashi uchun botni admin qiling («Xabarlarni o'chirish» huquqi)."
+        tip = "" if st == "administrator" else ("\nHimoya ishlashi uchun botni admin qiling («Xabarlarni o'chirish» "
+                                                 "va «Foydalanuvchilarni bloklash» huquqlari).")
         on = "yoqilgan ✅" if g.get("on") else "o'chiq ⏸"
         kb = None if g.get("on") else InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
             text="🛡 Himoyani yoqish", callback_data="gg:tg:%s" % u.chat.id)]])
@@ -493,6 +577,8 @@ async def bot_rights(chat_id):
         return "⚠️ bot admin emas"
     if getattr(m, "can_delete_messages", True) is False:
         return "⚠️ o'chirish huquqi yo'q"
+    if ban_on() and getattr(m, "can_restrict_members", True) is False:
+        return "⚠️ ban berish huquqi yo'q («Foydalanuvchilarni bloklash»)"
     return ""
 
 
@@ -511,7 +597,7 @@ async def home_view(user):
     live = [(k, v) for k, v in g.items() if not v.get("left")]
     if not live:
         lines.append("Bot hali birorta guruhda emas. Botni guruhga qo'shing va admin qiling "
-                     "(«Xabarlarni o'chirish» huquqi bilan) — guruh shu yerda chiqadi.")
+                     "(«Xabarlarni o'chirish» va «Foydalanuvchilarni bloklash» huquqlari bilan) — guruh shu yerda chiqadi.")
     else:
         lines.append("<b>Guruhlar</b> (himoyani yoqish/o'chirish uchun bosing):")
         for k, v in live:
@@ -564,11 +650,16 @@ async def set_view():
     lines = ["⚙️ <b>Sozlamalar</b> — guruhda nimani cheklash", "",
              "❌ cheklangan — guruhda o'chiriladi va odam tag qilinadi",
              "✅ ruxsat — tegilmaydi", "",
+             "<b>1-marta:</b> o'chiriladi + «iltimos admindan ruxsat so'rang. Agar yana bir bor qaytarilsa ban beraman.»",
+             "<b>2-marta</b> (%d kun ichida): %s" % (STRIKE_DAYS, "ban + guruhdagi barcha xabarlari o'chiriladi"
+                                                   if ban_on() else "yana o'chiriladi va ogohlantiriladi (ban o'chiq)"),
+             "",
              "<b>Har doim ruxsat:</b> %s, «Ruxsatlar»dagi kanallardan forward" % html.escape(", ".join(always)),
              "<b>Qo'shimcha ruxsat etilgan username va saytlar:</b> %s"
              % (html.escape(", ".join(words)) if words else "— <i>(yo'q)</i>")]
     rows = [[("%s: %s" % (label, "❌ cheklangan" if r[k] else "✅ ruxsat"), "gg:k:%s" % k)] for k, label in KINDS]
-    rows += [[("✏️ Ruxsat etilgan username va saytlar", "gg:words")], [("⬅️ Orqaga", "gg:home")]]
+    rows += [[("🚫 Qayta tashlasa ban: %s" % ("✅ yoqilgan" if ban_on() else "⏸ o'chiq"), "gg:ban")],
+             [("✏️ Ruxsat etilgan username va saytlar", "gg:words")], [("⬅️ Orqaga", "gg:home")]]
     return "\n".join(lines), rows
 
 
@@ -669,6 +760,28 @@ async def on_panel(c: CallbackQuery):
             save_restrict(r)
         await c.answer()
         return await show(c, await set_view())
+    if data == "gg:ban":
+        db.set_setting("guard.ban", "0" if ban_on() else "1")
+        await c.answer("🚫 Ban yoqildi" if ban_on() else "⏸ Ban o'chirildi — faqat o'chiriladi va ogohlantiriladi")
+        return await show(c, await set_view())
+    if data.startswith("gg:unban:"):
+        try:
+            _, _, chat_id, who = data.split(":")
+            chat_id, who = int(chat_id), int(who)
+            if who < 0:
+                await ctx["bot"].unban_chat_sender_chat(chat_id, who)
+            else:
+                await ctx["bot"].unban_chat_member(chat_id, who, only_if_banned=True)
+        except (ValueError, TelegramAPIError) as e:
+            return await c.answer("Bandan chiqarib bo'lmadi: %s" % str(e)[:150], show_alert=True)
+        set_strike(chat_id, who, on=False)
+        await c.answer("♻️ Bandan chiqarildi — guruhga qayta qo'shilishi mumkin", show_alert=True)
+        try:
+            await c.message.edit_text((c.message.html_text or c.message.text or "") + "\n\n♻️ Bandan chiqarildi.",
+                                      parse_mode=H)
+        except TelegramAPIError:
+            pass
+        return
     if data == "gg:words":
         words_wait.add(u.id)
         await c.answer()
