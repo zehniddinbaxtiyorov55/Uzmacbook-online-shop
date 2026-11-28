@@ -63,5 +63,8 @@ Har bir guruhda himoya alohida yoqiladi (buyurtmalar/xodimlar guruhi tasodifan h
 - Ozod: admin, «Ruxsatlar» ro'yxati, guruh adminlari, anonim admin, guruhga bog'langan kanal, botlar.
 - Panel: `/start` → **📣 Guruhga reklama berish** (faqat admin va ruxsat berilganlarga ko'rinadi) → guruhlar (himoyani yoqish/o'chirish), **👥 Ruxsatlar**, **⚙️ Sozlamalar** (nimani cheklash, ruxsat etilgan username va saytlar).
 - Guruhda tezkor: odamning xabariga reply qilib `/ruxsat` yoki `/ruxsat_ol` (faqat admin).
+- **Forward:** boshqa kanal/guruhdan forward qilingan xabarlar o'chiriladi. Faqat «👥 Ruxsatlar»ga qo'shilgan kanallar (Uzmacbook, MagicPro, reklama beruvchilar), post bo'limida ulangan kanal va guruhga bog'langan kanaldan forward qoladi.
+- Kanalni ruxsatga qo'shish: Ruxsatlar → ➕ → kanaldan biror postni forward qiling yoki kanal @username / t.me linkini yuboring.
+- Odamning xabarini forward qilsa — ichidagi rasm/link/username odatdagidek tekshiriladi.
 - Guruh xabarlari do'kon botining boshqa qismlariga (salom javobi, post bo'limi, mijozlar bazasi) bormaydi.
 - Kod: `group_guard.py`.

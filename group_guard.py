@@ -4,6 +4,9 @@
   o'chiriladi va yuborgan odam tag qilinib: «admindan ruxsat oling» deyiladi.
 - Ozod: admin (POST_ADMINS, @sherxonjumayev), «Ruxsatlar» ro'yxatidagilar, guruh adminlari,
   anonim admin, guruhga bog'langan kanal, botlar.
+- Kanallardan forward: faqat bizning kanallar (Uzmacbook, MagicPro — «Ruxsatlar»ga qo'shilgan kanallar,
+  post bo'limidagi kanallar, guruhga bog'langan kanal) dan forward qoladi; boshqa kanallardan forward o'chiriladi.
+  Reklama beruvchi kanalni «Ruxsatlar»ga qo'shsangiz — undan forward ham o'chmaydi.
 - Har bir guruhda himoya alohida yoqiladi (buyurtmalar/xodimlar guruhi tasodifan himoyalanib qolmasin).
 - Boshqaruv paneli shaxsiy chatda: /start → «📣 Guruhga reklama berish» (faqat admin va ruxsat berilganlar).
 - Guruh xabarlari do'kon botining boshqa qismlariga (salom javobi, post bo'limi, mijozlar bazasi) bormaydi.
@@ -34,8 +37,10 @@ NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 GROUP_TYPES = ("group", "supergroup")
 HOME_BTN = "📣 Guruhga reklama berish"
 
-KINDS = [("photo", "🖼 Rasm"), ("video", "🎬 Video"), ("link", "🔗 Link va silkalar"), ("username", "@ Username'lar")]
-KIND_WORDS = {"photo": "rasm", "video": "video", "link": "link", "username": "username"}
+KINDS = [("photo", "🖼 Rasm"), ("video", "🎬 Video"), ("link", "🔗 Link va silkalar"), ("username", "@ Username'lar"),
+         ("forward", "↪️ Boshqa kanaldan forward")]
+KIND_WORDS = {"photo": "rasm", "video": "video", "link": "link", "username": "username",
+              "forward": "boshqa kanaldan forward"}
 WARN_TTL = 60          # ogohlantirish necha soniyadan keyin o'chadi (0 — o'chmaydi)
 WARN_GAP = 20          # bir odamga necha soniyada bir marta ogohlantirish (albom/ketma-ket xabar)
 ADMIN_CACHE = 600      # guruh adminlari ro'yxati necha soniya eslab qolinadi
@@ -50,6 +55,7 @@ TG_HOSTS = ("t.me", "telegram.me", "telegram.dog")
 _admin_cache = {}     # (chat_id, user_id) -> (admin_mi, vaqt)
 _last_warn = {}       # (chat_id, kim) -> vaqt
 _fail_told = {}       # chat_id -> vaqt (o'chirish huquqi yo'qligi haqida admin ogohlantirildi)
+_chat_cache = {}      # get_chat natijalari (kanal username'i, guruhga bog'langan kanal)
 grant_wait = set()    # ruxsat beriladigan odamni kutayotgan adminlar
 words_wait = set()    # ruxsat etilgan username/saytlar ro'yxatini kutayotgan adminlar
 
@@ -114,6 +120,84 @@ def extra_words():
     return out
 
 
+# ---------- Bizning kanallar (ulardan forward o'chirilmaydi) ----------
+def post_channels():
+    """«📢 Kanalga post» bo'limida ulangan kanallar (ID yoki @username)."""
+    out = []
+    try:
+        for k in post_bot.brand_keys():
+            v = str(post_bot.brand_cfg(k).get("channel") or "").strip()
+            if v and v not in out:
+                out.append(v)
+    except Exception:
+        log.exception("GUARD: post bo'limi kanallarini o'qib bo'lmadi")
+    return out
+
+
+async def cached_chat(key):
+    """get_chat (10 daqiqa eslab qolinadi). Topilmasa None."""
+    c = _chat_cache.get(key)
+    if c and time.time() - c[1] < ADMIN_CACHE:
+        return c[0]
+    try:
+        v = await ctx["bot"].get_chat(key)
+    except Exception:
+        v = None
+    if not hasattr(v, "id") or not hasattr(v, "type"):
+        v = None
+    _chat_cache[key] = (v, time.time())
+    return v
+
+
+def is_channel(e):
+    return e.get("kind") == "channel"
+
+
+async def our_channels(chat=None):
+    """Ruxsat etilgan kanallar: (ID'lar, username'lar) — «Ruxsatlar»dagi kanallar, post bo'limidagi kanallar,
+    guruhning o'zi va unga bog'langan kanal."""
+    ids, names = set(), set()
+    for e in [x for x in acl() if is_channel(x)]:
+        if e.get("id"):
+            ids.add(int(e["id"]))
+        if e.get("username"):
+            names.add(e["username"].lower())
+    for v in post_channels():
+        if re.fullmatch(r"-?\d+", v):
+            ids.add(int(v))
+        else:
+            names.add(re.sub(r"^(?:https?://)?(?:t\.me/)?@?", "", v).strip("/").lower())
+    if chat is not None:
+        ids.add(chat.id)
+        full = await cached_chat(chat.id)
+        if full is not None and getattr(full, "linked_chat_id", None):
+            ids.add(full.linked_chat_id)
+    for i in list(ids):                       # ID bilan saqlanganlarning username'i (linklari ham ruxsat)
+        if chat is not None and i == chat.id:
+            continue
+        info = await cached_chat(i)
+        if info is not None and getattr(info, "username", None):
+            names.add(info.username.lower())
+    names.discard("")
+    return ids, names
+
+
+def origin_chat(m):
+    """Xabar kanal yoki guruhdan forward qilingan bo'lsa — o'sha chat, aks holda None."""
+    o = m.forward_origin
+    if o is None:
+        return None
+    return getattr(o, "chat", None) or getattr(o, "sender_chat", None)
+
+
+async def is_our_forward(m):
+    oc = origin_chat(m)
+    if oc is None:
+        return False
+    ids, names = await our_channels(m.chat)
+    return oc.id in ids or (oc.username or "").lower() in names
+
+
 # ---------- Kim ozod ----------
 def is_granted(u):
     """«Ruxsatlar» ro'yxatida bormi (ID yoki @username bo'yicha)."""
@@ -122,6 +206,8 @@ def is_granted(u):
     uname = (u.username or "").lower()
     lst = acl()
     for e in lst:
+        if is_channel(e):
+            continue
         if e.get("id"):
             if e["id"] == u.id:
                 return True
@@ -154,7 +240,8 @@ async def is_exempt(m):
     if m.sender_chat is not None:
         if m.sender_chat.id == m.chat.id or m.is_automatic_forward:
             return True                       # anonim admin yoki guruhga bog'langan kanal
-        return False                          # boshqa kanal nomidan yozilgan — tekshiriladi
+        ids, names = await our_channels(m.chat)
+        return m.sender_chat.id in ids or (m.sender_chat.username or "").lower() in names
     u = m.from_user
     if u is None or u.is_bot:
         return True
@@ -179,7 +266,8 @@ async def allowed_names(chat):
     if getattr(chat, "username", None):
         names.add(chat.username.lower())
     names.update(w for w in extra_words() if "." not in w)
-    names.update(e["username"] for e in acl() if e.get("username"))
+    names.update(e["username"] for e in acl() if e.get("username"))   # odamlar va kanallar
+    names.update((await our_channels(chat))[1])
     return names
 
 
@@ -217,6 +305,8 @@ async def violations(m):
         found.append("photo")
     if r["video"] and (m.video or m.video_note or m.animation or mime.startswith("video/")):
         found.append("video")
+    if r["forward"] and origin_chat(m) is not None:     # ruxsat etilgan kanallar check() da o'tkazib yuborilgan
+        found.append("forward")
     if not (r["link"] or r["username"]):
         return found
     names = await allowed_names(m.chat)
@@ -271,6 +361,8 @@ async def check(m):
         return
     if await is_exempt(m):
         return
+    if await is_our_forward(m):
+        return                                 # ruxsat etilgan kanaldan forward — rasm, link bo'lsa ham tegilmaydi
     found = await violations(m)
     if not found:
         return
@@ -288,7 +380,7 @@ async def check(m):
     if time.time() - _last_warn.get(key, 0) < WARN_GAP:
         return                                 # albomning qolgan rasmlari — bitta ogohlantirish yetadi
     _last_warn[key] = time.time()
-    what = ", ".join(KIND_WORDS[k] for k in found)
+    what = KIND_WORDS["forward"] if "forward" in found else ", ".join(KIND_WORDS[k] for k in found)
     try:
         msg = await ctx["bot"].send_message(
             m.chat.id, "%s, guruhga %s tashlash uchun admindan ruxsat oling: %s" % (tag, what, admin_mention()),
@@ -428,23 +520,38 @@ async def home_view(user):
                                       (" — " + warn) if warn else ""))
             rows.append([("%s %s" % ("✅" if v.get("on") else "⏸", (v.get("title") or k)[:30]), "gg:tg:%s" % k)])
     lim = [KIND_WORDS[k] for k, _ in KINDS if r[k]]
+    lst = acl()
+    nch = len([e for e in lst if is_channel(e)])
     lines += ["", "Cheklangan: %s" % (", ".join(lim) or "hech narsa"),
-              "Ruxsat berilganlar: %d kishi" % len(acl())]
+              "Ruxsat berilganlar: %d kishi, %d kanal" % (len(lst) - nch, nch)]
     rows += [[("👥 Ruxsatlar", "gg:acl"), ("⚙️ Sozlamalar", "gg:set")], [("⬅️ Menyu", "menu")]]
     return "\n".join(lines), rows
+
+
+def entry_label(e):
+    if is_channel(e):
+        t = e.get("name") or ""
+        u = ("@" + e["username"]) if e.get("username") else ""
+        return "📢 " + (" ".join(x for x in (t, u) if x and x != u.lstrip("@")) or str(e.get("id")))
+    return "👤 " + post_bot.entry_name(e)
 
 
 async def acl_view():
     lst = acl()
     lines = ["👥 <b>Ruxsatlar</b> — guruhga reklama bera oladiganlar", "",
-             "Admin: %s (har doim ozod)" % html.escape(admin_mention()), ""]
+             "Admin: %s (har doim ozod)" % html.escape(admin_mention())]
+    auto = [await chan_title(v) for v in post_channels()]
+    lines.append("Avtomatik kanallar: %s" % html.escape(", ".join(auto + ["guruhga bog'langan kanal"])))
+    lines.append("")
     if lst:
-        lines += ["%d. %s" % (i + 1, html.escape(post_bot.entry_name(e))) for i, e in enumerate(lst)]
+        lines += ["%d. %s" % (k + 1, html.escape(entry_label(e))) for k, e in enumerate(lst)]
     else:
         lines.append("Hozircha hech kimga ruxsat berilmagan.")
-    lines += ["", "Olib tashlash uchun ismini bosing.",
-              "Guruhda odamning xabariga reply qilib /ruxsat (yoki /ruxsat_ol) yozsangiz ham bo'ladi."]
-    rows = [[("❌ " + post_bot.entry_name(e)[:40], "gg:del:%d" % i)] for i, e in enumerate(lst)]
+    lines += ["", "👤 odam — guruhga rasm, video, link tashlay oladi.",
+              "📢 kanal — undan forward qilingan postlar o'chirilmaydi (Uzmacbook, MagicPro va reklama beruvchilar).",
+              "Olib tashlash uchun bosing. Guruhda odamning xabariga reply qilib /ruxsat (yoki /ruxsat_ol) "
+              "yozsangiz ham bo'ladi."]
+    rows = [[("❌ " + entry_label(e)[:40], "gg:del:%d" % k)] for k, e in enumerate(lst)]
     rows += [[("➕ Ruxsat berish", "gg:add")], [("⬅️ Orqaga", "gg:home")]]
     return "\n".join(lines), rows
 
@@ -457,12 +564,45 @@ async def set_view():
     lines = ["⚙️ <b>Sozlamalar</b> — guruhda nimani cheklash", "",
              "❌ cheklangan — guruhda o'chiriladi va odam tag qilinadi",
              "✅ ruxsat — tegilmaydi", "",
-             "<b>Har doim ruxsat:</b> %s" % html.escape(", ".join(always)),
+             "<b>Har doim ruxsat:</b> %s, «Ruxsatlar»dagi kanallardan forward" % html.escape(", ".join(always)),
              "<b>Qo'shimcha ruxsat etilgan username va saytlar:</b> %s"
              % (html.escape(", ".join(words)) if words else "— <i>(yo'q)</i>")]
     rows = [[("%s: %s" % (label, "❌ cheklangan" if r[k] else "✅ ruxsat"), "gg:k:%s" % k)] for k, label in KINDS]
     rows += [[("✏️ Ruxsat etilgan username va saytlar", "gg:words")], [("⬅️ Orqaga", "gg:home")]]
     return "\n".join(lines), rows
+
+
+async def chan_title(v):
+    info = await cached_chat(int(v) if re.fullmatch(r"-?\d+", str(v)) else "@" + str(v).lstrip("@"))
+    if info is None:
+        return str(v)
+    t = info.title or str(v)
+    return "%s (@%s)" % (t, info.username) if getattr(info, "username", None) else t
+
+
+async def channel_from(m):
+    """Admin kanal yubordimi: kanaldan forward / kanal @username / t.me linki / -100 ID.
+    (yozuv, xato); ikkalasi None bo'lsa — bu kanal emas (odam sifatida tekshiriladi)."""
+    oc = origin_chat(m)
+    if oc is not None:
+        return {"kind": "channel", "id": oc.id, "username": (oc.username or "").lower(),
+                "name": oc.title or oc.username or str(oc.id)}, None
+    if m.forward_origin is not None:
+        return None, None                     # odamning xabari forward qilingan
+    t = (m.text or "").strip()
+    mid = re.fullmatch(r"-100\d{5,}", t)
+    mu = re.fullmatch(r"(?:https?://)?(?:www\.)?(?:t\.me/|telegram\.me/)?@?([A-Za-z][A-Za-z0-9_]{3,31})/?", t)
+    if not (mid or mu):
+        return None, None
+    info = await cached_chat(int(t) if mid else "@" + mu.group(1))
+    if info is None:
+        if mid:
+            return None, "Bu ID dagi kanal topilmadi. Kanaldan biror postni forward qiling."
+        return None, None                     # ochiq kanal emas — odamning username'i bo'lsa kerak
+    if info.type == "private":
+        return None, None
+    return {"kind": "channel", "id": info.id, "username": (getattr(info, "username", None) or "").lower(),
+            "name": info.title or str(info.id)}, None
 
 
 async def show(c, view):
@@ -507,7 +647,7 @@ async def on_panel(c: CallbackQuery):
         if 0 <= i < len(lst):
             e = lst.pop(i)
             save_acl(lst)
-            await c.answer("❌ %s — ruxsat olib tashlandi" % post_bot.entry_name(e), show_alert=True)
+            await c.answer("❌ %s — ruxsat olib tashlandi" % entry_label(e), show_alert=True)
         else:
             await c.answer()
         return await show(c, await acl_view())
@@ -515,8 +655,9 @@ async def on_panel(c: CallbackQuery):
         grant_wait.add(u.id)
         await c.answer()
         return await c.message.answer(
-            "➕ Ruxsat bermoqchi bo'lgan odamning <b>@username</b> ini yuboring yoki uning biror xabarini shu yerga "
-            "<b>forward</b> qiling.\n\nBekor qilish: «-»", parse_mode=H)
+            "➕ <b>Odamga</b> ruxsat: uning @username'ini yuboring yoki biror xabarini shu yerga forward qiling.\n"
+            "📢 <b>Kanalga</b> ruxsat: kanaldan biror postni shu yerga forward qiling yoki kanal @username'ini "
+            "(t.me/... linkini) yuboring.\n\nBekor qilish: «-»", parse_mode=H)
     if data == "gg:set":
         await c.answer()
         return await show(c, await set_view())
@@ -557,14 +698,25 @@ async def on_input(m: Message):
     if text == "-":
         grant_wait.discard(uid)
     else:
-        e, err = post_bot.target_from(m)
+        e, err = await channel_from(m)
+        if e is None and err is None:
+            link = re.fullmatch(r"(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/@?(\w{4,32})/?", text)
+            # t.me/username — kanal topilmadi, demak odamning linki
+            e, err = post_bot.target_from(m.model_copy(update={"text": "@" + link.group(1)}) if link else m)
         if err:
             return await m.answer("⚠️ " + err + "\nBekor qilish: «-»")
         grant_wait.discard(uid)
         lst = acl()
-        if any((x.get("id") and x["id"] == e["id"]) or (e["username"] and x.get("username") == e["username"])
+        if any(is_channel(x) == is_channel(e) and ((x.get("id") and x["id"] == e["id"])
+                                                    or (e["username"] and x.get("username") == e["username"]))
                for x in lst):
-            await m.answer("Bu odamda ruxsat allaqachon bor.")
+            await m.answer("Bunda ruxsat allaqachon bor.")
+        elif is_channel(e):
+            lst.append(e)
+            save_acl(lst)
+            _chat_cache.clear()
+            await m.answer("✅ «%s» kanaliga ruxsat berildi — undan forward qilingan postlar guruhda o'chirilmaydi."
+                           % e["name"])
         else:
             lst.append(e)
             save_acl(lst)
