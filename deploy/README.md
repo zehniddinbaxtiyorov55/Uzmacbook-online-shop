@@ -56,10 +56,12 @@ Botda `/start` → **📢 Kanalga post** tugmasi faqat admin va ruxsat berilganl
 
 ## 📣 Guruhga reklama berish (guruh himoyasi)
 
-Botni guruhga qo'shing va **admin** qiling («Xabarlarni o'chirish» huquqi bilan). Bot adminga xabar yuboradi — **🛡 Himoyani yoqish** ni bosing.
+Botni guruhga qo'shing va **admin** qiling («Xabarlarni o'chirish» va «Foydalanuvchilarni bloklash» huquqlari bilan). Bot adminga xabar yuboradi — **🛡 Himoyani yoqish** ni bosing.
 Har bir guruhda himoya alohida yoqiladi (buyurtmalar/xodimlar guruhi tasodifan himoyalanib qolmaydi).
 
-- Himoya yoqilgan guruhda cheklangan narsalar (rasm, video, link, boshqa @username) o'chiriladi va yuborgan odam tag qilinadi: «admindan ruxsat oling: @sherxonjumayev». Ogohlantirish 1 daqiqadan keyin o'zi o'chadi.
+- Himoya yoqilgan guruhda cheklangan narsalar (rasm, video, link, boshqa @username) o'chiriladi va yuborgan odam tag qilinadi: «@username iltimos admindan ruxsat so'rang. Agar yana bir bor qaytarilsa ban beraman.» Ogohlantirish 1 daqiqadan keyin o'zi o'chadi.
+- 30 kun ichida yana tashlasa — **ban** va uning guruhdagi barcha xabarlari o'chiriladi. Adminga xabar keladi, «♻️ Bandan chiqarish» tugmasi bilan. Albom (bir nechta rasm) va ogohlantirishdan keyingi 20 soniyadagi xabarlar bitta urinish hisoblanadi.
+- Ban'ni Sozlamalarda o'chirib qo'ysa bo'ladi («🚫 Qayta tashlasa ban»).
 - Ozod: admin, «Ruxsatlar» ro'yxati, guruh adminlari, anonim admin, guruhga bog'langan kanal, botlar.
 - Panel: `/start` → **📣 Guruhga reklama berish** (faqat admin va ruxsat berilganlarga ko'rinadi) → guruhlar (himoyani yoqish/o'chirish), **👥 Ruxsatlar**, **⚙️ Sozlamalar** (nimani cheklash, ruxsat etilgan username va saytlar).
 - Guruhda tezkor: odamning xabariga reply qilib `/ruxsat` yoki `/ruxsat_ol` (faqat admin).
