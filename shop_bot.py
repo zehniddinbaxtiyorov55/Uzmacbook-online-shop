@@ -1,5 +1,6 @@
 """Do'kon boti: Mini App (Billz tovarlari), /start, /id, /kanal, /hisobot (kunlik savdo hisoboti),
-admin panel (admin.py), «📢 Kanalga post» (post_bot.py, faqat xodimlar uchun).
+admin panel (admin.py), «📢 Kanalga post» (post_bot.py, faqat xodimlar uchun),
+«📣 Guruhga reklama berish» — guruh himoyasi (group_guard.py).
 Javob beruvchi AI bot (bot.py) dan alohida ishlaydi."""
 import asyncio, hashlib, logging, os, re
 import aiohttp
@@ -11,6 +12,7 @@ from aiogram.types import (Message, CallbackQuery, InlineKeyboardMarkup, InlineK
                            ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, WebAppInfo)
 import admin
 import db
+import group_guard
 import post_bot
 import report
 import settings
@@ -189,6 +191,9 @@ def why_no_cashback(info):
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
+# Guruh xabarlari birinchi shu yerda: reklama tekshiriladi va ular do'kon botining boshqa qismlariga
+# (salom javobi, post bo'limi, mijozlar bazasi) o'tmaydi. Shuning uchun eng birinchi turadi.
+dp.message.outer_middleware(group_guard.mw)
 dp.message.outer_middleware(report.remember_mw)  # hisobot @username orqali topilishi uchun
 
 
@@ -285,9 +290,9 @@ def main_menu(user=None):
     rows.append([InlineKeyboardButton(
         text="✍️ Savollar va takliflar",
         url="https://t.me/%s" % (settings.get("questions_contact") or QUESTIONS_CONTACT).lstrip("@"))])
-    staff = post_bot.menu_row(user)
-    if staff:
-        rows.append(staff)
+    for staff in (post_bot.menu_row(user), group_guard.menu_row(user)):
+        if staff:
+            rows.append(staff)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -318,6 +323,7 @@ async def fetch_cashback(phone):
 async def on_start(m: Message):
     if m.from_user:
         post_bot.reset(m.from_user.id)
+        group_guard.reset(m.from_user.id)
     await m.answer(settings.get("welcome"), reply_markup=main_menu(m.from_user))
 
 
@@ -336,6 +342,7 @@ async def on_info(c: CallbackQuery):
 @dp.callback_query(F.data == "menu")
 async def on_menu(c: CallbackQuery):
     post_bot.reset(c.from_user.id)
+    group_guard.reset(c.from_user.id)
     try:
         await c.message.edit_text(settings.get("welcome"), reply_markup=main_menu(c.from_user))
     except Exception:
@@ -438,6 +445,7 @@ async def on_hisobot(m: Message, command: CommandObject):
 # «📢 Kanalga post» (xodimlar) — umumiy javobdan OLDIN tekshiriladi.
 # Dispatcher avval o'z handlerlarini, keyin ulangan routerlarni tekshiradi, shuning uchun
 # "hamma xabarga salom" javobi alohida routerda va eng oxirida turadi.
+dp.include_router(group_guard.router)   # guruh paneli (shaxsiy chatdagi kiritishlar post bo'limidan oldin)
 dp.include_router(post_bot.router)
 fallback = Router(name="fallback")
 
@@ -486,6 +494,7 @@ async def main():
         log.exception("BOT: kunlik hisobotni ulab bo'lmadi")
     admin.setup(app, bot, main_menu)
     post_bot.setup(bot, billz_products, plan_fn=webapp.plan)
+    group_guard.setup(bot)
     secret = hashlib.sha256(BOT_TOKEN.encode()).hexdigest()[:32]
     if webapp.URL:
         SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=secret).register(

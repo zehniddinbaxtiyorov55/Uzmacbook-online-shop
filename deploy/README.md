@@ -53,3 +53,15 @@ Botda `/start` → **📢 Kanalga post** tugmasi faqat admin va ruxsat berilganl
 - Tovar Billz'da sotilsa, kanaldagi postda narx ustidan o'zi chiziladi; Billz'da narx o'zgarsa post narxi ham yangilanadi.
 - Billz maydonlarini tekshirish: `/maydon 0164`.
 - Kod: `post_bot.py` (tugmalar va oqim), `post_format.py` (post matni), `post_config.py` (matnlar, variantlar).
+
+## 📣 Guruhga reklama berish (guruh himoyasi)
+
+Botni guruhga qo'shing va **admin** qiling («Xabarlarni o'chirish» huquqi bilan). Bot adminga xabar yuboradi — **🛡 Himoyani yoqish** ni bosing.
+Har bir guruhda himoya alohida yoqiladi (buyurtmalar/xodimlar guruhi tasodifan himoyalanib qolmaydi).
+
+- Himoya yoqilgan guruhda cheklangan narsalar (rasm, video, link, boshqa @username) o'chiriladi va yuborgan odam tag qilinadi: «admindan ruxsat oling: @sherxonjumayev». Ogohlantirish 1 daqiqadan keyin o'zi o'chadi.
+- Ozod: admin, «Ruxsatlar» ro'yxati, guruh adminlari, anonim admin, guruhga bog'langan kanal, botlar.
+- Panel: `/start` → **📣 Guruhga reklama berish** (faqat admin va ruxsat berilganlarga ko'rinadi) → guruhlar (himoyani yoqish/o'chirish), **👥 Ruxsatlar**, **⚙️ Sozlamalar** (nimani cheklash, ruxsat etilgan username va saytlar).
+- Guruhda tezkor: odamning xabariga reply qilib `/ruxsat` yoki `/ruxsat_ol` (faqat admin).
+- Guruh xabarlari do'kon botining boshqa qismlariga (salom javobi, post bo'limi, mijozlar bazasi) bormaydi.
+- Kod: `group_guard.py`.
